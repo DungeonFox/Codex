@@ -2,11 +2,34 @@ import WindowManager from './WindowManager.js'
 
 
 
-const t = THREE;
+let t = THREE;
 let camera, scene, renderer, world;
 let near, far;
 let pixR = window.devicePixelRatio ? window.devicePixelRatio : 1;
 let cubes = [];
+let gui;
+let cubeControls = {
+    width: 150,
+    height: 150,
+    depth: 150,
+    subDepth: 1,
+    rows: 1,
+    columns: 1,
+    posX: 0,
+    posY: 0,
+    velocityX: 0,
+    velocityY: 0,
+    color: '#ff0000',
+    subColor: '#ff0000',
+    matchDepth: false,
+    rotX: 0,
+    rotY: 0,
+    rotZ: 0,
+    selRow: 0,
+    selCol: 0,
+    selLayer: 0,
+    selColor: '#ff0000'
+};
 let sceneOffsetTarget = {x: 0, y: 0};
 let sceneOffset = {x: 0, y: 0};
 
@@ -56,8 +79,9 @@ else
 
 		// add a short timeout because window.offsetX reports wrong values before a short period 
 		setTimeout(() => {
-			setupScene();
-			setupWindowManager();
+                        setupScene();
+                        setupGUI();
+                        setupWindowManager();
 			resize();
 			updateWindowShape(false);
 			render();
@@ -65,9 +89,9 @@ else
 		}, 500)	
 	}
 
-	function setupScene ()
-	{
-		camera = new t.OrthographicCamera(0, 0, window.innerWidth, window.innerHeight, -10000, 10000);
+        function setupScene ()
+        {
+                camera = new t.OrthographicCamera(0, 0, window.innerWidth, window.innerHeight, -10000, 10000);
 		
 		camera.position.z = 2.5;
 		near = camera.position.z - .5;
@@ -83,24 +107,62 @@ else
 	  	world = new t.Object3D();
 		scene.add(world);
 
-		renderer.domElement.setAttribute("id", "scene");
-		document.body.appendChild( renderer.domElement );
-	}
+                renderer.domElement.setAttribute("id", "scene");
+                document.body.appendChild( renderer.domElement );
+        }
+
+        let selRowCtrl, selColCtrl, selLayerCtrl;
+
+        function setupGUI ()
+        {
+                gui = new dat.GUI();
+                gui.add(cubeControls, 'width', 50, 300, 10).onChange(updateCubeSize);
+                gui.add(cubeControls, 'height', 50, 300, 10).onChange(updateCubeSize);
+                gui.add(cubeControls, 'depth', 50, 300, 10).onChange(updateCubeSize);
+                gui.add(cubeControls, 'rows', 1, 10, 1).onChange(() => { updateSubCubeLayout(); refreshSelectionControllers(); });
+                gui.add(cubeControls, 'columns', 1, 10, 1).onChange(() => { updateSubCubeLayout(); refreshSelectionControllers(); });
+                gui.add(cubeControls, 'subDepth', 1, 10, 1).onChange(() => { updateCubeSize(); updateSubCubeLayout(); refreshSelectionControllers(); });
+                gui.add(cubeControls, 'posX', -300, 300, 1);
+                gui.add(cubeControls, 'posY', -300, 300, 1);
+                gui.add(cubeControls, 'velocityX', -10, 10, 0.1);
+                gui.add(cubeControls, 'velocityY', -10, 10, 0.1);
+                gui.addColor(cubeControls, 'color').onChange(updateCubeColor);
+                gui.addColor(cubeControls, 'subColor').onChange(updateSubCubeColor);
+                gui.add(cubeControls, 'matchDepth').onChange(updateCubeSize);
+                gui.add(cubeControls, 'rotX', 0, Math.PI * 2, 0.1);
+                gui.add(cubeControls, 'rotY', 0, Math.PI * 2, 0.1);
+                gui.add(cubeControls, 'rotZ', 0, Math.PI * 2, 0.1);
+                selRowCtrl = gui.add(cubeControls, 'selRow', 0, cubeControls.rows - 1, 1).onChange(updateSelectedSubCubeColor);
+                selColCtrl = gui.add(cubeControls, 'selCol', 0, cubeControls.columns - 1, 1).onChange(updateSelectedSubCubeColor);
+                selLayerCtrl = gui.add(cubeControls, 'selLayer', 0, cubeControls.subDepth - 1, 1).onChange(updateSelectedSubCubeColor);
+                gui.addColor(cubeControls, 'selColor').onChange(updateSelectedSubCubeColor);
+        }
+
+        function refreshSelectionControllers ()
+        {
+                if (selRowCtrl) selRowCtrl.max(cubeControls.rows - 1);
+                if (selColCtrl) selColCtrl.max(cubeControls.columns - 1);
+                if (selLayerCtrl) selLayerCtrl.max(cubeControls.subDepth - 1);
+        }
 
 	function setupWindowManager ()
 	{
-		windowManager = new WindowManager();
-		windowManager.setWinShapeChangeCallback(updateWindowShape);
-		windowManager.setWinChangeCallback(windowsUpdated);
+                windowManager = new WindowManager();
+                windowManager.setWinShapeChangeCallback(updateWindowShape);
+                windowManager.setWinChangeCallback(windowsUpdated);
 
-		// here you can add your custom metadata to each windows instance
-		let metaData = {foo: "bar"};
+                // add custom metadata so each window can store its own colour
+                let metaData = {color: cubeControls.color};
 
-		// this will init the windowmanager and add this window to the centralised pool of windows
-		windowManager.init(metaData);
+                // initialise window manager and register this window
+                windowManager.init(metaData);
 
-		// call update windows initially (it will later be called by the win change callback)
-		windowsUpdated();
+                // expose id and colour on the DOM for persistence
+                document.body.dataset.idWindow = windowManager.getThisWindowID();
+                document.body.dataset.idColor = metaData.color;
+
+                // call update windows initially (it will later be called by the win change callback)
+                windowsUpdated();
 	}
 
 	function windowsUpdated ()
@@ -108,9 +170,15 @@ else
 		updateNumberOfCubes();
 	}
 
-	function updateNumberOfCubes ()
-	{
-		let wins = windowManager.getWindows();
+        function updateNumberOfCubes ()
+        {
+                let wins = windowManager.getWindows();
+
+                // keep DOM data attributes in sync with this window's metadata
+                let selfData = windowManager.getThisWindowData();
+                if (selfData && selfData.metaData) {
+                        document.body.dataset.idColor = selfData.metaData.color;
+                }
 
 		// remove all cubes
 		cubes.forEach((c) => {
@@ -119,23 +187,136 @@ else
 
 		cubes = [];
 
-		// add new cubes based on the current window setup
-		for (let i = 0; i < wins.length; i++)
-		{
-			let win = wins[i];
+                // add new cubes based on the current window setup
+                for (let i = 0; i < wins.length; i++)
+                {
+                        let win = wins[i];
 
-			let c = new t.Color();
-			c.setHSL(i * .1, 1.0, .5);
+                        let baseDepth = cubeControls.depth;
+                        if (cubeControls.matchDepth) baseDepth = (cubeControls.width / cubeControls.columns) * cubeControls.subDepth;
+                        let color = cubeControls.color;
+                        if (win.metaData && win.metaData.color) color = win.metaData.color;
+                        let cube = new t.Mesh(
+                                new t.BoxGeometry(cubeControls.width, cubeControls.height, baseDepth),
+                                new t.MeshBasicMaterial({color: color, wireframe: true})
+                        );
+                        cube.userData.winId = win.id;
+                        cube.position.x = win.shape.x + (win.shape.w * .5);
+                        cube.position.y = win.shape.y + (win.shape.h * .5);
 
-			let s = 100 + i * 50;
-			let cube = new t.Mesh(new t.BoxGeometry(s, s, s), new t.MeshBasicMaterial({color: c , wireframe: true}));
-			cube.position.x = win.shape.x + (win.shape.w * .5);
-			cube.position.y = win.shape.y + (win.shape.h * .5);
+                        createSubCubeGrid(cube, baseDepth);
 
-			world.add(cube);
-			cubes.push(cube);
-		}
-	}
+                        world.add(cube);
+                        cubes.push(cube);
+                }
+        }
+
+       function updateCubeSize ()
+       {
+               cubes.forEach((cube) => {
+                       cube.geometry.dispose();
+                        let baseDepth = cubeControls.depth;
+                        if (cubeControls.matchDepth) baseDepth = (cubeControls.width / cubeControls.columns) * cubeControls.subDepth;
+                        cube.geometry = new t.BoxGeometry(cubeControls.width, cubeControls.height, baseDepth);
+                        createSubCubeGrid(cube, baseDepth);
+               });
+               updateSubCubeColor();
+               updateSelectedSubCubeColor();
+       }
+
+       function updateCubeColor ()
+       {
+                let wins = windowManager.getWindows();
+                cubes.forEach((cube, idx) => {
+                        cube.material.color.set(cubeControls.color);
+                        let win = wins[idx];
+                        if (win && win.metaData) win.metaData.color = cubeControls.color;
+                });
+                windowManager.updateWindowsLocalStorage();
+                document.body.dataset.idColor = cubeControls.color;
+       }
+
+        function updateSubCubeColor ()
+        {
+                cubes.forEach((cube) => {
+                        if (cube.userData.subCubes) {
+                                cube.userData.subCubes.forEach((sc) => {
+                                        sc.material.color.set(cubeControls.subColor);
+                                });
+                        }
+                });
+        }
+
+        function updateSelectedSubCubeColor ()
+        {
+                cubes.forEach((cube) => {
+                        let m = cube.userData.subMatrix;
+                        let d = cubeControls.selLayer;
+                        let r = cubeControls.selRow;
+                        let c = cubeControls.selCol;
+                        if (m && m[d] && m[d][r] && m[d][r][c]) {
+                                m[d][r][c].material.color.set(cubeControls.selColor);
+                        }
+                });
+        }
+
+        function createSubCubeGrid (cube, baseDepth = cubeControls.depth)
+        {
+                if (!cube.userData.subCubes) cube.userData.subCubes = [];
+                if (!cube.userData.subMatrix) cube.userData.subMatrix = [];
+
+                cube.userData.subCubes.forEach((sc) => {
+                        cube.remove(sc);
+                        sc.geometry.dispose();
+                        sc.material.dispose();
+                });
+                cube.userData.subCubes = [];
+                cube.userData.subMatrix = [];
+
+                let rows = Math.max(1, cubeControls.rows | 0);
+                let cols = Math.max(1, cubeControls.columns | 0);
+                let layers = Math.max(1, cubeControls.subDepth | 0);
+
+                let subW = cubeControls.width / cols;
+                let subH = cubeControls.height / rows;
+                let subD = baseDepth / layers;
+
+                for (let d = 0; d < layers; d++)
+                {
+                        cube.userData.subMatrix[d] = [];
+                        for (let r = 0; r < rows; r++)
+                        {
+                                cube.userData.subMatrix[d][r] = [];
+                                for (let c = 0; c < cols; c++)
+                                {
+                                let sc = new t.Mesh(
+                                        new t.BoxGeometry(subW, subH, subD),
+                                        new t.MeshBasicMaterial({color: cubeControls.subColor, wireframe: true})
+                                );
+                                sc.userData.layer = d;
+                                sc.userData.row = r;
+                                sc.userData.column = c;
+                                sc.position.x = -cubeControls.width / 2 + subW * (c + 0.5);
+                                sc.position.y = -cubeControls.height / 2 + subH * (r + 0.5);
+                                sc.position.z = -baseDepth / 2 + subD * (d + 0.5);
+                                cube.add(sc);
+                                cube.userData.subCubes.push(sc);
+                                cube.userData.subMatrix[d][r][c] = sc;
+                                }
+                        }
+                }
+        }
+
+       function updateSubCubeLayout ()
+       {
+                cubes.forEach((cube) => {
+                        let baseDepth = cubeControls.depth;
+                        if (cubeControls.matchDepth) baseDepth = (cubeControls.width / cubeControls.columns) * cubeControls.subDepth;
+                        createSubCubeGrid(cube, baseDepth);
+                });
+                updateSubCubeColor();
+                updateSelectedSubCubeColor();
+        }
 
 	function updateWindowShape (easing = true)
 	{
@@ -145,9 +326,11 @@ else
 	}
 
 
-	function render ()
-	{
-		let t = getTime();
+        function render ()
+        {
+                let time = getTime();
+                let dt = time - internalTime;
+                internalTime = time;
 
 		windowManager.update();
 
@@ -165,19 +348,25 @@ else
 
 
 		// loop through all our cubes and update their positions based on current window positions
-		for (let i = 0; i < cubes.length; i++)
-		{
-			let cube = cubes[i];
-			let win = wins[i];
-			let _t = t;// + i * .2;
+                    for (let i = 0; i < cubes.length; i++)
+                    {
+                            let cube = cubes[i];
+                            let win = wins[i];
+                            let _t = time;// + i * .2;
 
-			let posTarget = {x: win.shape.x + (win.shape.w * .5), y: win.shape.y + (win.shape.h * .5)}
+                            let posTarget = {
+                                    x: win.shape.x + (win.shape.w * .5) + cubeControls.posX,
+                                    y: win.shape.y + (win.shape.h * .5) + cubeControls.posY
+                            };
 
-			cube.position.x = cube.position.x + (posTarget.x - cube.position.x) * falloff;
-			cube.position.y = cube.position.y + (posTarget.y - cube.position.y) * falloff;
-			cube.rotation.x = _t * .5;
-			cube.rotation.y = _t * .3;
-		};
+                            cube.position.x = cube.position.x + (posTarget.x - cube.position.x) * falloff;
+                            cube.position.y = cube.position.y + (posTarget.y - cube.position.y) * falloff;
+                            cube.position.x += cubeControls.velocityX * dt;
+                            cube.position.y += cubeControls.velocityY * dt;
+                            cube.rotation.x = cubeControls.rotX + _t * .5;
+                            cube.rotation.y = cubeControls.rotY + _t * .3;
+                            cube.rotation.z = cubeControls.rotZ;
+                    }
 
 		renderer.render(scene, camera);
 		requestAnimationFrame(render);
