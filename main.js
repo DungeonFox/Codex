@@ -162,10 +162,11 @@ else
                 for (let i = 0; i < wins.length; i++)
                 {
                         let win = wins[i];
-
                         let depth = cubeControls.matchDepth ? cubeControls.subDepth : cubeControls.width;
                         let cube = new t.Mesh(
                                 new t.BoxGeometry(cubeControls.width, cubeControls.height, depth),
+                        let cube = new t.Mesh(
+                                new t.BoxGeometry(cubeControls.width, cubeControls.height, cubeControls.width),
                                 new t.MeshBasicMaterial({color: cubeControls.color, wireframe: true})
                         );
                         cube.position.x = win.shape.x + (win.shape.w * .5);
@@ -246,6 +247,19 @@ else
                         createSubCubeGrid(cube);
                 });
                 updateSubCubeColor();
+        function updateCubeSize ()
+        {
+                cubes.forEach((cube) => {
+                        cube.geometry.dispose();
+                        cube.geometry = new t.BoxGeometry(cubeControls.width, cubeControls.height, cubeControls.width);
+                });
+        }
+
+        function updateCubeColor ()
+        {
+                cubes.forEach((cube) => {
+                        cube.material.color.set(cubeControls.color);
+                });
         }
 
 	function updateWindowShape (easing = true)
