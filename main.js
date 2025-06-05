@@ -303,6 +303,8 @@ else
                         let baseDepth = cubeControls.depth;
                         if (cubeControls.matchDepth) baseDepth = (cubeControls.width / cubeControls.columns) * cubeControls.subDepth;
                         cube.geometry = new t.BoxBufferGeometry(cubeControls.width, cubeControls.height, baseDepth);
+                        cube.material.color.set(cubeControls.color);
+                        cube.material.needsUpdate = true;
                         createSubCubeGrid(cube, baseDepth);
                 });
                 updateSubCubeColor();
@@ -463,6 +465,7 @@ else
                 }
 
                 mesh.instanceColor = new t.InstancedBufferAttribute(colors, 3);
+                mesh.geometry.setAttribute('instanceColor', mesh.instanceColor);
                 mesh.instanceColor.needsUpdate = true;
                 if (gpu && colorVar) {
                         colorVar.material.uniforms.time.value = internalTime;
