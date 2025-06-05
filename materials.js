@@ -1,4 +1,4 @@
-const t = THREE;
+let t = THREE;
 
 export function createSubCubeMaterial() {
     return new t.MeshBasicMaterial({ wireframe: true, vertexColors: true });

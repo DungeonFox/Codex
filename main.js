@@ -168,15 +168,15 @@ else
         }
 
         function setupControls() {
-                const fileInput = document.getElementById('colorFile');
-                const toggleBtn = document.getElementById('toggleGUI');
+                let fileInput = document.getElementById('colorFile');
+                let toggleBtn = document.getElementById('toggleGUI');
                 if (fileInput) {
                         fileInput.addEventListener('input', async (e) => {
-                                const f = e.target.files[0];
+                                let f = e.target.files[0];
                                 if (!f) return;
-                                const text = await f.text();
+                                let text = await f.text();
                                 try {
-                                        const data = JSON.parse(text);
+                                        let data = JSON.parse(text);
                                         applyColorData(data);
                                 } catch(err) {
                                         console.error('invalid color file');
@@ -195,7 +195,7 @@ else
 
         function toggleGUI() {
                 if (gui && gui.domElement) {
-                        const d = gui.domElement.style.display === 'none' ? 'block' : 'none';
+                        let d = gui.domElement.style.display === 'none' ? 'block' : 'none';
                         gui.domElement.style.display = d;
                 }
         }
@@ -331,8 +331,8 @@ else
        {
                 cubes.forEach((cube) => {
                         if (cube.userData.winId === thisWindowId && cube.userData.subMesh) {
-                                const count = cube.userData.subMesh.count;
-                                const color = new t.Color(cubeControls.subColor);
+                                let count = cube.userData.subMesh.count;
+                                let color = new t.Color(cubeControls.subColor);
                                 for (let i = 0; i < count; i++) {
                                         cube.userData.subMesh.setColorAt(i, color);
                                 }
@@ -385,7 +385,7 @@ else
         function applyColorData(arr) {
                 cubes.forEach((cube) => {
                         if (cube.userData.subMesh) {
-                                const count = cube.userData.subMesh.count;
+                                let count = cube.userData.subMesh.count;
                                 for (let i = 0; i < Math.min(count, arr.length); i++) {
                                         let cval = arr[i];
                                         if (Array.isArray(cval) && cval.length >= 3) {
@@ -424,7 +424,7 @@ else
                 let mesh = new t.InstancedMesh(geometry, material, count);
                 mesh.instanceMatrix.setUsage(t.DynamicDrawUsage);
 
-                const colors = new Float32Array(count * 3);
+                let colors = new Float32Array(count * 3);
                 let index = 0;
 
                 for (let d = 0; d < layers; d++) {

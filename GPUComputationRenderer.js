@@ -2,7 +2,7 @@
 // THREE is loaded globally via a script tag in index.html
 // Access THREE from the global scope so the module works when the library is
 // included via a script tag.
-const THREE = globalThis.THREE;
+let THREE = globalThis.THREE;
 
 class GPUComputationRenderer {
     constructor(sizeX, sizeY, renderer) {
@@ -21,7 +21,7 @@ class GPUComputationRenderer {
     }
 
     createShaderMaterial(fragmentShader, uniforms = {}) {
-        const material = new THREE.ShaderMaterial({
+    let material = new THREE.ShaderMaterial({
             uniforms,
             vertexShader: 'void main(){ gl_Position = vec4(position,1.0); }',
             fragmentShader
@@ -31,8 +31,8 @@ class GPUComputationRenderer {
     }
 
     addVariable(name, fragmentShader, initialValueTexture) {
-        const material = this.createShaderMaterial(fragmentShader);
-        const variable = {
+    let material = this.createShaderMaterial(fragmentShader);
+    let variable = {
             name,
             initialValueTexture,
             material,
@@ -66,7 +66,7 @@ class GPUComputationRenderer {
     }
 
     createTexture() {
-        const data = new Float32Array(this.sizeX * this.sizeY * 4);
+        let data = new Float32Array(this.sizeX * this.sizeY * 4);
         return new THREE.DataTexture(data, this.sizeX, this.sizeY, THREE.RGBAFormat, THREE.FloatType);
     }
 
@@ -76,7 +76,7 @@ class GPUComputationRenderer {
     }
 
     renderTexture(input, output) {
-        const currentRenderTarget = this.renderer.getRenderTarget();
+        let currentRenderTarget = this.renderer.getRenderTarget();
         this.passThruUniforms.passThruTexture.value = input;
         this.renderer.setRenderTarget(output);
         this.renderer.render(this.scene, this.camera);
@@ -92,14 +92,14 @@ class GPUComputationRenderer {
     }
 
     compute() {
-        const nextIndex = this.currentTextureIndex === 0 ? 1 : 0;
+        let nextIndex = this.currentTextureIndex === 0 ? 1 : 0;
         for (let variable of this.variables) {
             if (variable.dependencies) {
                 variable.dependencies.forEach(dep => {
                     variable.material.uniforms[dep.name].value = dep.renderTargets[this.currentTextureIndex].texture;
                 });
             }
-            const current = this.renderer.getRenderTarget();
+            let current = this.renderer.getRenderTarget();
             this.mesh.material = variable.material;
             this.renderer.setRenderTarget(variable.renderTargets[nextIndex]);
             this.renderer.render(this.scene, this.camera);
