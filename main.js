@@ -549,9 +549,21 @@ else
                         colorVar.material.uniforms.time.value = internalTime;
                         gpu.compute();
                         let read = new Float32Array(colorTexSize.x * colorTexSize.y * 4);
-                        renderer.readRenderTargetPixels(gpu.getCurrentRenderTarget(colorVar), 0, 0, colorTexSize.x, colorTexSize.y, read);
+                        renderer.readRenderTargetPixels(
+                                gpu.getCurrentRenderTarget(colorVar),
+                                0,
+                                0,
+                                colorTexSize.x,
+                                colorTexSize.y,
+                                read
+                        );
                         cubes.forEach((cube) => {
-                                if (cube.userData.subMesh) {
+                                if (
+                                        cube.userData.subMesh &&
+                                        (!cube.userData.metaData ||
+                                                !cube.userData.metaData.subColors ||
+                                                Object.keys(cube.userData.metaData.subColors).length === 0)
+                                ) {
                                         let count = cube.userData.subMesh.count;
                                         for (let i = 0; i < count; i++) {
                                                 let idx = i * 4;
