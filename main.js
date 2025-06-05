@@ -229,7 +229,7 @@ else
                         let color = cubeControls.color;
                         if (win.metaData && win.metaData.color) color = win.metaData.color;
                         let cube = new t.Mesh(
-                                new t.BoxGeometry(cubeControls.width, cubeControls.height, baseDepth),
+                                new t.BoxBufferGeometry(cubeControls.width, cubeControls.height, baseDepth),
                                 new t.MeshBasicMaterial({color: color, wireframe: true})
                         );
                         cube.userData.winId = win.id;
@@ -250,7 +250,7 @@ else
                         cube.geometry.dispose();
                         let baseDepth = cubeControls.depth;
                         if (cubeControls.matchDepth) baseDepth = (cubeControls.width / cubeControls.columns) * cubeControls.subDepth;
-                        cube.geometry = new t.BoxGeometry(cubeControls.width, cubeControls.height, baseDepth);
+                        cube.geometry = new t.BoxBufferGeometry(cubeControls.width, cubeControls.height, baseDepth);
                         createSubCubeGrid(cube, baseDepth);
                 });
                 updateSubCubeColor();
@@ -278,13 +278,31 @@ else
        function updateSubCubeColor ()
        {
                 cubes.forEach((cube) => {
-                        if (cube.userData.winId === thisWindowId && cube.userData.subCubes) {
-                                cube.userData.subCubes.forEach((sc) => {
-                                        sc.material.color.set(cubeControls.subColor);
-                                        if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
-                                        let key = `${sc.userData.coord.x}_${sc.userData.coord.y}_${sc.userData.coord.z}`;
-                                        cube.userData.metaData.subColors[key] = cubeControls.subColor;
-                                });
+                        if (cube.userData.winId === thisWindowId && cube.userData.subMesh) {
+                                const count = cube.userData.subMesh.count;
+                                const color = new t.Color(cubeControls.subColor);
+                                for (let i = 0; i < count; i++) {
+                                        cube.userData.subMesh.setColorAt(i, color);
+                                }
+                                cube.userData.subMesh.instanceColor.needsUpdate = true;
+
+                                if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
+                                let rows = Math.max(1, cubeControls.rows | 0);
+                                let cols = Math.max(1, cubeControls.columns | 0);
+                                let layers = Math.max(1, cubeControls.subDepth | 0);
+                                for (let d = 0; d < layers; d++) {
+                                        for (let r = 0; r < rows; r++) {
+                                                for (let c = 0; c < cols; c++) {
+                                                        let coord = {
+                                                                x: indexToCoord(c, cols),
+                                                                y: indexToCoord(r, rows),
+                                                                z: indexToCoord(d, layers)
+                                                        };
+                                                        let key = `${coord.x}_${coord.y}_${coord.z}`;
+                                                        cube.userData.metaData.subColors[key] = cubeControls.subColor;
+                                                }
+                                        }
+                                }
                         }
                 });
                 windowManager.updateWindowsLocalStorage();
@@ -293,13 +311,16 @@ else
        function updateSelectedSubCubeColor ()
        {
                 cubes.forEach((cube) => {
-                        if (cube.userData.winId === thisWindowId) {
+                        if (cube.userData.winId === thisWindowId && cube.userData.subMesh) {
                                 let m = cube.userData.subMatrix;
                                 let d = coordToIndex(cubeControls.selLayer, cubeControls.subDepth);
                                 let r = coordToIndex(cubeControls.selRow, cubeControls.rows);
                                 let c = coordToIndex(cubeControls.selCol, cubeControls.columns);
-                                if (m && m[d] && m[d][r] && m[d][r][c]) {
-                                        m[d][r][c].material.color.set(cubeControls.selColor);
+                                if (m && m[d] && m[d][r] && m[d][r][c] !== undefined) {
+                                        let idx = m[d][r][c];
+                                        let color = new t.Color(cubeControls.selColor);
+                                        cube.userData.subMesh.setColorAt(idx, color);
+                                        cube.userData.subMesh.instanceColor.needsUpdate = true;
                                         if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
                                         let key = `${cubeControls.selCol}_${cubeControls.selRow}_${cubeControls.selLayer}`;
                                         cube.userData.metaData.subColors[key] = cubeControls.selColor;
@@ -311,15 +332,12 @@ else
 
         function createSubCubeGrid (cube, baseDepth = cubeControls.depth)
         {
-                if (!cube.userData.subCubes) cube.userData.subCubes = [];
-                if (!cube.userData.subMatrix) cube.userData.subMatrix = [];
+                if (cube.userData.subMesh) {
+                        cube.remove(cube.userData.subMesh);
+                        cube.userData.subMesh.geometry.dispose();
+                        cube.userData.subMesh.material.dispose();
+                }
 
-                cube.userData.subCubes.forEach((sc) => {
-                        cube.remove(sc);
-                        sc.geometry.dispose();
-                        sc.material.dispose();
-                });
-                cube.userData.subCubes = [];
                 cube.userData.subMatrix = [];
 
                 let rows = Math.max(1, cubeControls.rows | 0);
@@ -330,41 +348,56 @@ else
                 let subH = cubeControls.height / rows;
                 let subD = baseDepth / layers;
 
-                for (let d = 0; d < layers; d++)
-                {
+                let count = rows * cols * layers;
+                let geometry = new t.BoxBufferGeometry(subW, subH, subD);
+                let material = new t.MeshBasicMaterial({wireframe: true, vertexColors: true});
+                let mesh = new t.InstancedMesh(geometry, material, count);
+                mesh.instanceMatrix.setUsage(t.DynamicDrawUsage);
+
+                const colors = new Float32Array(count * 3);
+                let index = 0;
+
+                for (let d = 0; d < layers; d++) {
                         cube.userData.subMatrix[d] = [];
-                        for (let r = 0; r < rows; r++)
-                        {
+                        for (let r = 0; r < rows; r++) {
                                 cube.userData.subMatrix[d][r] = [];
-                                for (let c = 0; c < cols; c++)
-                                {
-                                let coord = {
-                                        x: indexToCoord(c, cols),
-                                        y: indexToCoord(r, rows),
-                                        z: indexToCoord(d, layers)
-                                };
-                                let color = cubeControls.subColor;
-                                if (cube.userData.metaData && cube.userData.metaData.subColors) {
-                                        let key = `${coord.x}_${coord.y}_${coord.z}`;
-                                        if (cube.userData.metaData.subColors[key]) color = cube.userData.metaData.subColors[key];
-                                }
-                                let sc = new t.Mesh(
-                                        new t.BoxGeometry(subW, subH, subD),
-                                        new t.MeshBasicMaterial({color: color, wireframe: true})
-                                );
-                                sc.userData.layer = d;
-                                sc.userData.row = r;
-                                sc.userData.column = c;
-                                sc.userData.coord = coord;
-                                sc.position.x = -cubeControls.width / 2 + subW * (c + 0.5);
-                                sc.position.y = -cubeControls.height / 2 + subH * (r + 0.5);
-                                sc.position.z = -baseDepth / 2 + subD * (d + 0.5);
-                                cube.add(sc);
-                                cube.userData.subCubes.push(sc);
-                                cube.userData.subMatrix[d][r][c] = sc;
+                                for (let c = 0; c < cols; c++) {
+                                        let coord = {
+                                                x: indexToCoord(c, cols),
+                                                y: indexToCoord(r, rows),
+                                                z: indexToCoord(d, layers)
+                                        };
+                                        let color = cubeControls.subColor;
+                                        if (cube.userData.metaData && cube.userData.metaData.subColors) {
+                                                let key = `${coord.x}_${coord.y}_${coord.z}`;
+                                                if (cube.userData.metaData.subColors[key]) color = cube.userData.metaData.subColors[key];
+                                        }
+
+                                        let colObj = new t.Color(color);
+                                        colors[index * 3] = colObj.r;
+                                        colors[index * 3 + 1] = colObj.g;
+                                        colors[index * 3 + 2] = colObj.b;
+
+                                        let matrix = new t.Matrix4();
+                                        matrix.makeTranslation(
+                                                -cubeControls.width / 2 + subW * (c + 0.5),
+                                                -cubeControls.height / 2 + subH * (r + 0.5),
+                                                -baseDepth / 2 + subD * (d + 0.5)
+                                        );
+                                        mesh.setMatrixAt(index, matrix);
+
+                                        cube.userData.subMatrix[d][r][c] = index;
+                                        index++;
                                 }
                         }
                 }
+
+                mesh.instanceColor = new t.InstancedBufferAttribute(colors, 3);
+                mesh.instanceColor.needsUpdate = true;
+                mesh.instanceMatrix.needsUpdate = true;
+
+                cube.userData.subMesh = mesh;
+                cube.add(mesh);
         }
 
         function updateSubCubeLayout ()
