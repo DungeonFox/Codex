@@ -2,7 +2,7 @@ import WindowManager from './WindowManager.js'
 
 
 
-const t = THREE;
+const three = THREE;
 let camera, scene, renderer, world;
 let near, far;
 let pixR = window.devicePixelRatio ? window.devicePixelRatio : 1;
@@ -86,20 +86,20 @@ else
 
         function setupScene ()
         {
-                camera = new t.OrthographicCamera(0, 0, window.innerWidth, window.innerHeight, -10000, 10000);
+                camera = new three.OrthographicCamera(0, 0, window.innerWidth, window.innerHeight, -10000, 10000);
 		
 		camera.position.z = 2.5;
 		near = camera.position.z - .5;
 		far = camera.position.z + 0.5;
 
-		scene = new t.Scene();
-		scene.background = new t.Color(0.0);
+		scene = new three.Scene();
+		scene.background = new three.Color(0.0);
 		scene.add( camera );
 
-		renderer = new t.WebGLRenderer({antialias: true, depthBuffer: true});
+		renderer = new three.WebGLRenderer({antialias: true, depthBuffer: true});
 		renderer.setPixelRatio(pixR);
 	    
-	  	world = new t.Object3D();
+	  	world = new three.Object3D();
 		scene.add(world);
 
                 renderer.domElement.setAttribute("id", "scene");
@@ -163,19 +163,19 @@ else
                 {
                         let win = wins[i];
                         let depth = cubeControls.matchDepth ? cubeControls.subDepth : cubeControls.width;
-                        let cube = new t.Mesh(
-                                new t.BoxGeometry(cubeControls.width, cubeControls.height, depth),
-                        let cube = new t.Mesh(
-                                new t.BoxGeometry(cubeControls.width, cubeControls.height, cubeControls.width),
-                                new t.MeshBasicMaterial({color: cubeControls.color, wireframe: true})
-                        );
-                        cube.position.x = win.shape.x + (win.shape.w * .5);
-                        cube.position.y = win.shape.y + (win.shape.h * .5);
+                        let cube = new three.Mesh(
+                                new three.BoxGeometry(cubeControls.width, cubeControls.height, depth),
+                                new three.MeshBasicMaterial({color: cubeControls.color, wireframe: true})
+                        cube.geometry = new three.BoxGeometry(cubeControls.width, cubeControls.height, depth);
+                                let sc = new three.Mesh(
+                                        new three.BoxGeometry(subW, subH, subD),
+                                        new three.MeshBasicMaterial({color: cubeControls.subColor, wireframe: true})
+                let time = getTime();
+                let dt = time - internalTime;
+                internalTime = time;
 
-                        createSubCubeGrid(cube);
-
-                        world.add(cube);
-                        cubes.push(cube);
+			let _t = time;// + i * .2;
+		camera = new three.OrthographicCamera(0, width, 0, height, -10000, 10000);
                 }
         }
 
