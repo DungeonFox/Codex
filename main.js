@@ -8,6 +8,7 @@ let near, far;
 let pixR = window.devicePixelRatio ? window.devicePixelRatio : 1;
 let cubes = [];
 let gui;
+let thisWindowId;
 let cubeControls = {
     width: 150,
     height: 150,
@@ -188,7 +189,8 @@ else
                 windowManager.init(metaData);
 
                 // expose id and colour on the DOM for persistence
-                document.body.dataset.idWindow = windowManager.getThisWindowID();
+                thisWindowId = windowManager.getThisWindowID();
+                document.body.dataset.idWindow = thisWindowId;
                 document.body.dataset.idColor = metaData.color;
 
                 // call update windows initially (it will later be called by the win change callback)
@@ -260,21 +262,23 @@ else
        {
                 let wins = windowManager.getWindows();
                 cubes.forEach((cube, idx) => {
-                        cube.material.color.set(cubeControls.color);
-                        let win = wins[idx];
-                        if (win && win.metaData) {
-                                win.metaData.color = cubeControls.color;
-                                cube.userData.metaData = win.metaData;
+                        if (cube.userData.winId === thisWindowId) {
+                                cube.material.color.set(cubeControls.color);
+                                let win = wins[idx];
+                                if (win && win.metaData) {
+                                        win.metaData.color = cubeControls.color;
+                                        cube.userData.metaData = win.metaData;
+                                }
+                                document.body.dataset.idColor = cubeControls.color;
                         }
                 });
                 windowManager.updateWindowsLocalStorage();
-                document.body.dataset.idColor = cubeControls.color;
        }
 
-        function updateSubCubeColor ()
-        {
+       function updateSubCubeColor ()
+       {
                 cubes.forEach((cube) => {
-                        if (cube.userData.subCubes) {
+                        if (cube.userData.winId === thisWindowId && cube.userData.subCubes) {
                                 cube.userData.subCubes.forEach((sc) => {
                                         sc.material.color.set(cubeControls.subColor);
                                         if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
@@ -284,24 +288,26 @@ else
                         }
                 });
                 windowManager.updateWindowsLocalStorage();
-        }
+       }
 
-        function updateSelectedSubCubeColor ()
-        {
+       function updateSelectedSubCubeColor ()
+       {
                 cubes.forEach((cube) => {
-                        let m = cube.userData.subMatrix;
-                        let d = coordToIndex(cubeControls.selLayer, cubeControls.subDepth);
-                        let r = coordToIndex(cubeControls.selRow, cubeControls.rows);
-                        let c = coordToIndex(cubeControls.selCol, cubeControls.columns);
-                        if (m && m[d] && m[d][r] && m[d][r][c]) {
-                                m[d][r][c].material.color.set(cubeControls.selColor);
-                                if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
-                                let key = `${cubeControls.selCol}_${cubeControls.selRow}_${cubeControls.selLayer}`;
-                                cube.userData.metaData.subColors[key] = cubeControls.selColor;
+                        if (cube.userData.winId === thisWindowId) {
+                                let m = cube.userData.subMatrix;
+                                let d = coordToIndex(cubeControls.selLayer, cubeControls.subDepth);
+                                let r = coordToIndex(cubeControls.selRow, cubeControls.rows);
+                                let c = coordToIndex(cubeControls.selCol, cubeControls.columns);
+                                if (m && m[d] && m[d][r] && m[d][r][c]) {
+                                        m[d][r][c].material.color.set(cubeControls.selColor);
+                                        if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
+                                        let key = `${cubeControls.selCol}_${cubeControls.selRow}_${cubeControls.selLayer}`;
+                                        cube.userData.metaData.subColors[key] = cubeControls.selColor;
+                                }
                         }
                 });
                 windowManager.updateWindowsLocalStorage();
-        }
+       }
 
         function createSubCubeGrid (cube, baseDepth = cubeControls.depth)
         {

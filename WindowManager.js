@@ -40,24 +40,26 @@ class WindowManager
 	}
 
 	// check if theres any changes to the window list
-	#didWindowsChange (pWins, nWins)
-	{
-		if (pWins.length != nWins.length)
-		{
-			return true;
-		}
-		else
-		{
-			let c = false;
+        #didWindowsChange (pWins, nWins)
+        {
+                if (pWins.length != nWins.length)
+                {
+                        return true;
+                }
+                else
+                {
+                        let c = false;
 
-			for (let i = 0; i < pWins.length; i++)
-			{
-				if (pWins[i].id != nWins[i].id) c = true;
-			}
+                        for (let i = 0; i < pWins.length; i++)
+                        {
+                                if (pWins[i].id != nWins[i].id) c = true;
+                                if (JSON.stringify(pWins[i].metaData) !== JSON.stringify(nWins[i].metaData)) c = true;
+                                if (JSON.stringify(pWins[i].shape) !== JSON.stringify(nWins[i].shape)) c = true;
+                        }
 
-			return c;
-		}
-	}
+                        return c;
+                }
+        }
 
 	// initiate current window (add metadata for custom data to store with each window instance)
 	init (metaData)
