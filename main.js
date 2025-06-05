@@ -1,330 +1,308 @@
-import WindowManager from './WindowManager.js'
+import WindowManager from './WindowManager.js';
 
-
-
-const t = THREE;
+/* -------------------------------------------------- scene globals */
+let t = THREE;                     // short-hand alias to THREE
 let camera, scene, renderer, world;
 let near, far;
-let pixR = window.devicePixelRatio ? window.devicePixelRatio : 1;
-let cubes = [];
-let gui;
-let cubeControls = {
-    width: 150,
-    height: 150,
-    subDepth: 150,
-    rows: 1,
-    columns: 1,
-    posX: 0,
-    posY: 0,
-    velocityX: 0,
-    velocityY: 0,
-    color: '#ff0000',
-    subColor: '#ff0000',
-    matchDepth: false,
-    rotX: 0,
-    rotY: 0,
-    rotZ: 0
+const pixR   = window.devicePixelRatio || 1;
+let cubes    = [];
+
+/* ---------------------------- real-time, GUI-exposed parameters */
+const cubeControls = {
+  /* geometry */
+  width:      150,
+  height:     150,
+  subDepth:   150,
+  matchDepth: false,      // if true → cube.depth = subDepth
+
+  /* sub-grid */
+  rows:       1,
+  columns:    1,
+
+  /* base transform offsets / velocities */
+  posX:       0,
+  posY:       0,
+  velocityX:  0,
+  velocityY:  0,
+
+  /* colours */
+  color:      '#ff0000',
+  subColor:   '#ff0000',
+
+  /* global rotation */
+  rotX:       0,
+  rotY:       0,
+  rotZ:       0,
 };
-let sceneOffsetTarget = {x: 0, y: 0};
-let sceneOffset = {x: 0, y: 0};
 
-let today = new Date();
-today.setHours(0);
-today.setMinutes(0);
-today.setSeconds(0);
-today.setMilliseconds(0);
-today = today.getTime();
+/* ---------------------------- window & timing helpers */
+let sceneOffsetTarget = { x: 0, y: 0 };
+let sceneOffset       = { x: 0, y: 0 };
 
-let internalTime = getTime();
+const midnight = new Date().setHours(0, 0, 0, 0);      // epoch for daily clock
+let internalTime = getTimeSeconds();                    // seconds since midnight
+
+function getTimeSeconds () { return (Date.now() - midnight) / 1000; }
+
+/* ---------------------------- WindowManager */
 let windowManager;
 let initialized = false;
 
-// get time in seconds since beginning of the day (so that all windows use the same time)
-function getTime ()
-{
-	return (new Date().getTime() - today) / 1000.0;
+/* ================================================================ */
+/* ▀▀  Entry points & bootstrap                                    ▀▀ */
+if (new URLSearchParams(window.location.search).get('clear')) {
+  localStorage.clear();
+} else {
+  /* many browsers pre-render hidden tabs – defer initialisation     */
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden' && !initialized) init();
+  });
+
+  window.onload = () => {
+    if (document.visibilityState !== 'hidden') init();
+  };
 }
 
-
-if (new URLSearchParams(window.location.search).get("clear"))
-{
-	localStorage.clear();
+/* ================================================================ */
+/* ███  INITIALISATION                                             ███ */
+function init () {
+  initialized = true;
+  /* give the browser ~½ s to finish reporting correct window coords */
+  setTimeout(() => {
+    setupScene();
+    setupGUI();
+    setupWindowManager();
+    resize();                       // initial sizing
+    updateWindowShape(false);       // set initial scene offset
+    render();                       // start the RAF loop
+    window.addEventListener('resize', resize);
+  }, 500);
 }
-else
-{	
-	// this code is essential to circumvent that some browsers preload the content of some pages before you actually hit the url
-	document.addEventListener("visibilitychange", () => 
-	{
-		if (document.visibilityState != 'hidden' && !initialized)
-		{
-			init();
-		}
-	});
 
-	window.onload = () => {
-		if (document.visibilityState != 'hidden')
-		{
-			init();
-		}
-	};
+/* ------------------------------------------------ scene creation */
+function setupScene () {
+  camera = new t.OrthographicCamera(
+    0,             // left
+    window.innerWidth,
+    0,             // top
+    window.innerHeight,
+    -10_000,
+    10_000
+  );
+  camera.position.z = 2.5;
+  near = camera.position.z - 0.5;
+  far  = camera.position.z + 0.5;
 
-	function init ()
-	{
-		initialized = true;
+  scene = new t.Scene();
+  scene.background = new t.Color(0x000000);
+  scene.add(camera);
 
-		// add a short timeout because window.offsetX reports wrong values before a short period 
-		setTimeout(() => {
-                        setupScene();
-                        setupGUI();
-                        setupWindowManager();
-			resize();
-			updateWindowShape(false);
-			render();
-			window.addEventListener('resize', resize);
-		}, 500)	
-	}
+  renderer = new t.WebGLRenderer({ antialias: true, depthBuffer: true });
+  renderer.setPixelRatio(pixR);
+  renderer.domElement.id = 'scene';
+  document.body.appendChild(renderer.domElement);
 
-        function setupScene ()
-        {
-                camera = new t.OrthographicCamera(0, 0, window.innerWidth, window.innerHeight, -10000, 10000);
-		
-		camera.position.z = 2.5;
-		near = camera.position.z - .5;
-		far = camera.position.z + 0.5;
+  world = new t.Object3D();
+  scene.add(world);
+}
 
-		scene = new t.Scene();
-		scene.background = new t.Color(0.0);
-		scene.add( camera );
+/* ------------------------------------------------ dat.GUI */
+function setupGUI () {
+  gui = new dat.GUI();
 
-		renderer = new t.WebGLRenderer({antialias: true, depthBuffer: true});
-		renderer.setPixelRatio(pixR);
-	    
-	  	world = new t.Object3D();
-		scene.add(world);
+  gui.add(cubeControls, 'width',      50, 300, 10).onChange(() => { updateCubeSize(); updateSubCubeLayout(); });
+  gui.add(cubeControls, 'height',     50, 300, 10).onChange(() => { updateCubeSize(); updateSubCubeLayout(); });
+  gui.add(cubeControls, 'subDepth',   10, 300, 10).onChange(updateCubeSize);
 
-                renderer.domElement.setAttribute("id", "scene");
-                document.body.appendChild( renderer.domElement );
-        }
+  gui.add(cubeControls, 'rows',       1,  10,  1).onChange(updateSubCubeLayout);
+  gui.add(cubeControls, 'columns',    1,  10,  1).onChange(updateSubCubeLayout);
+  gui.add(cubeControls, 'matchDepth').onChange(updateCubeSize);
 
-        function setupGUI ()
-        {
-                gui = new dat.GUI();
-                gui.add(cubeControls, 'width', 50, 300, 10).onChange(updateCubeSize);
-                gui.add(cubeControls, 'height', 50, 300, 10).onChange(updateCubeSize);
-                gui.add(cubeControls, 'rows', 1, 10, 1).onChange(updateSubCubeLayout);
-                gui.add(cubeControls, 'columns', 1, 10, 1).onChange(updateSubCubeLayout);
-                gui.add(cubeControls, 'subDepth', 10, 300, 10).onChange(() => { updateCubeSize(); updateSubCubeLayout(); });
-                gui.add(cubeControls, 'posX', -300, 300, 1);
-                gui.add(cubeControls, 'posY', -300, 300, 1);
-                gui.add(cubeControls, 'velocityX', -10, 10, 0.1);
-                gui.add(cubeControls, 'velocityY', -10, 10, 0.1);
-                gui.addColor(cubeControls, 'color').onChange(updateCubeColor);
-                gui.addColor(cubeControls, 'subColor').onChange(updateSubCubeColor);
-                gui.add(cubeControls, 'matchDepth').onChange(updateCubeSize);
-                gui.add(cubeControls, 'rotX', 0, Math.PI * 2, 0.1);
-                gui.add(cubeControls, 'rotY', 0, Math.PI * 2, 0.1);
-                gui.add(cubeControls, 'rotZ', 0, Math.PI * 2, 0.1);
-        }
+  gui.add(cubeControls, 'posX',     -300, 300, 1);
+  gui.add(cubeControls, 'posY',     -300, 300, 1);
+  gui.add(cubeControls, 'velocityX', -10,  10, 0.1);
+  gui.add(cubeControls, 'velocityY', -10,  10, 0.1);
 
-	function setupWindowManager ()
-	{
-		windowManager = new WindowManager();
-		windowManager.setWinShapeChangeCallback(updateWindowShape);
-		windowManager.setWinChangeCallback(windowsUpdated);
+  gui.addColor(cubeControls, 'color').onChange(updateCubeColor);
+  gui.addColor(cubeControls, 'subColor').onChange(updateSubCubeColor);
 
-		// here you can add your custom metadata to each windows instance
-		let metaData = {foo: "bar"};
+  gui.add(cubeControls, 'rotX', 0, Math.PI * 2, 0.1);
+  gui.add(cubeControls, 'rotY', 0, Math.PI * 2, 0.1);
+  gui.add(cubeControls, 'rotZ', 0, Math.PI * 2, 0.1);
+}
 
-		// this will init the windowmanager and add this window to the centralised pool of windows
-		windowManager.init(metaData);
+/* ------------------------------------------------ WindowManager */
+function setupWindowManager () {
+  windowManager = new WindowManager();
+  windowManager.setWinShapeChangeCallback(updateWindowShape);
+  windowManager.setWinChangeCallback      (windowsUpdated);
 
-		// call update windows initially (it will later be called by the win change callback)
-		windowsUpdated();
-	}
+  /* attach any custom metadata per window */
+  const metaData = { foo: 'bar' };
+  windowManager.init(metaData);       // registers this tab
 
-	function windowsUpdated ()
-	{
-		updateNumberOfCubes();
-	}
+  windowsUpdated();                   // build first batch of cubes
+}
 
-	function updateNumberOfCubes ()
-	{
-		let wins = windowManager.getWindows();
+/* ================================================================ */
+/* ███  CUBE HANDLERS                                              ███ */
 
-		// remove all cubes
-		cubes.forEach((c) => {
-			world.remove(c);
-		})
+/* -------- rebuild cube list when number of windows changes */
+function windowsUpdated () {
+  updateNumberOfCubes();
+}
 
-		cubes = [];
+function updateNumberOfCubes () {
+  const wins = windowManager.getWindows();
 
-                // add new cubes based on the current window setup
-                for (let i = 0; i < wins.length; i++)
-                {
-                        let win = wins[i];
-                        let depth = cubeControls.matchDepth ? cubeControls.subDepth : cubeControls.width;
-                        let cube = new t.Mesh(
-                                new t.BoxGeometry(cubeControls.width, cubeControls.height, depth),
-                        let cube = new t.Mesh(
-                                new t.BoxGeometry(cubeControls.width, cubeControls.height, cubeControls.width),
-                                new t.MeshBasicMaterial({color: cubeControls.color, wireframe: true})
-                        );
-                        cube.position.x = win.shape.x + (win.shape.w * .5);
-                        cube.position.y = win.shape.y + (win.shape.h * .5);
+  /* purge old meshes */
+  cubes.forEach(c => world.remove(c));
+  cubes = [];
 
-                        createSubCubeGrid(cube);
+  /* create one cube per window */
+  for (const win of wins) {
+    const depth = cubeControls.matchDepth ? cubeControls.subDepth
+                                          : cubeControls.width;
 
-                        world.add(cube);
-                        cubes.push(cube);
-                }
-        }
+    const cube = new t.Mesh(
+      new t.BoxGeometry(cubeControls.width, cubeControls.height, depth),
+      new t.MeshBasicMaterial({ color: cubeControls.color, wireframe: true })
+    );
 
-       function updateCubeSize ()
-       {
-               cubes.forEach((cube) => {
-                       cube.geometry.dispose();
-                        let depth = cubeControls.matchDepth ? cubeControls.subDepth : cubeControls.width;
-                        cube.geometry = new t.BoxGeometry(cubeControls.width, cubeControls.height, depth);
-                        createSubCubeGrid(cube);
-               });
-       }
+    cube.position.set(
+      win.shape.x + win.shape.w * 0.5,
+      win.shape.y + win.shape.h * 0.5,
+      0
+    );
 
-        function updateCubeColor ()
-        {
-                cubes.forEach((cube) => {
-                        cube.material.color.set(cubeControls.color);
-                });
-        }
+    createSubCubeGrid(cube);
+    world.add(cube);
+    cubes.push(cube);
+  }
+}
 
-        function updateSubCubeColor ()
-        {
-                cubes.forEach((cube) => {
-                        if (cube.userData.subCubes) {
-                                cube.userData.subCubes.forEach((sc) => {
-                                        sc.material.color.set(cubeControls.subColor);
-                                });
-                        }
-                });
-        }
+/* -------- geometry & colour mutations (called by GUI) */
+function updateCubeSize () {
+  for (const cube of cubes) {
+    /* swap geometry */
+    cube.geometry.dispose();
+    const depth = cubeControls.matchDepth ? cubeControls.subDepth
+                                          : cubeControls.width;
+    cube.geometry = new t.BoxGeometry(cubeControls.width,
+                                      cubeControls.height,
+                                      depth);
+    createSubCubeGrid(cube);          // regenerate sub-grid
+  }
+}
 
-        function createSubCubeGrid (cube)
-        {
-                if (!cube.userData.subCubes) cube.userData.subCubes = [];
+function updateCubeColor () {
+  for (const cube of cubes)
+    cube.material.color.set(cubeControls.color);
+}
 
-                cube.userData.subCubes.forEach((sc) => {
-                        cube.remove(sc);
-                        sc.geometry.dispose();
-                        sc.material.dispose();
-                });
-                cube.userData.subCubes = [];
+function updateSubCubeColor () {
+  for (const cube of cubes)
+    if (cube.userData.subCubes)
+      cube.userData.subCubes.forEach(sc => sc.material.color.set(cubeControls.subColor));
+}
 
-                let rows = Math.max(1, cubeControls.rows | 0);
-                let cols = Math.max(1, cubeControls.columns | 0);
+function createSubCubeGrid (cube) {
+  /* dispose of any previous sub-cubes */
+  if (!cube.userData.subCubes) cube.userData.subCubes = [];
+  cube.userData.subCubes.forEach(sc => {
+    cube.remove(sc);
+    sc.geometry.dispose();
+    sc.material.dispose();
+  });
+  cube.userData.subCubes = [];
 
-                let subW = cubeControls.width / cols;
-                let subH = cubeControls.height / rows;
-                let subD = cubeControls.subDepth;
+  const rows = Math.max(1, cubeControls.rows | 0);
+  const cols = Math.max(1, cubeControls.columns | 0);
 
-                for (let r = 0; r < rows; r++)
-                {
-                        for (let c = 0; c < cols; c++)
-                        {
-                                let sc = new t.Mesh(
-                                        new t.BoxGeometry(subW, subH, subD),
-                                        new t.MeshBasicMaterial({color: cubeControls.subColor, wireframe: true})
-                                );
-                                sc.position.x = -cubeControls.width / 2 + subW * (c + 0.5);
-                                sc.position.y = -cubeControls.height / 2 + subH * (r + 0.5);
-                                cube.add(sc);
-                                cube.userData.subCubes.push(sc);
-                        }
-                }
-        }
+  const subW = cubeControls.width  / cols;
+  const subH = cubeControls.height / rows;
+  const subD = cubeControls.subDepth;
 
-        function updateSubCubeLayout ()
-        {
-                cubes.forEach((cube) => {
-                        createSubCubeGrid(cube);
-                });
-                updateSubCubeColor();
-        function updateCubeSize ()
-        {
-                cubes.forEach((cube) => {
-                        cube.geometry.dispose();
-                        cube.geometry = new t.BoxGeometry(cubeControls.width, cubeControls.height, cubeControls.width);
-                });
-        }
+  for (let r = 0; r < rows; ++r) {
+    for (let c = 0; c < cols; ++c) {
+      const sc = new t.Mesh(
+        new t.BoxGeometry(subW, subH, subD),
+        new t.MeshBasicMaterial({ color: cubeControls.subColor, wireframe: true })
+      );
+      sc.position.x = -cubeControls.width  / 2 + subW * (c + 0.5);
+      sc.position.y = -cubeControls.height / 2 + subH * (r + 0.5);
+      cube.add(sc);
+      cube.userData.subCubes.push(sc);
+    }
+  }
+}
 
-        function updateCubeColor ()
-        {
-                cubes.forEach((cube) => {
-                        cube.material.color.set(cubeControls.color);
-                });
-        }
+function updateSubCubeLayout () {
+  cubes.forEach(createSubCubeGrid);
+  updateSubCubeColor();        // ensure colours remain in sync
+}
 
-	function updateWindowShape (easing = true)
-	{
-		// storing the actual offset in a proxy that we update against in the render function
-		sceneOffsetTarget = {x: -window.screenX, y: -window.screenY};
-		if (!easing) sceneOffset = sceneOffsetTarget;
-	}
+/* ================================================================ */
+/* ███  RENDER LOOP                                                ███ */
+function updateWindowShape (easing = true) {
+  sceneOffsetTarget = { x: -window.screenX, y: -window.screenY };
+  if (!easing) sceneOffset = { ...sceneOffsetTarget };
+}
 
+function render () {
+  /* ------- clock */
+  const now = getTimeSeconds();
+  const dt  = now - internalTime;
+  internalTime = now;
 
-        function render ()
-        {
-                let t = getTime();
-                let dt = t - internalTime;
-                internalTime = t;
+  /* ------- WindowManager heartbeat */
+  windowManager.update();
 
-		windowManager.update();
+  /* ------- smooth scene pan to follow multi-window layout */
+  const k = 0.05;                                        // easing factor
+  sceneOffset.x += (sceneOffsetTarget.x - sceneOffset.x) * k;
+  sceneOffset.y += (sceneOffsetTarget.y - sceneOffset.y) * k;
+  world.position.set(sceneOffset.x, sceneOffset.y, 0);
 
+  /* ------- per-cube transforms */
+  const wins = windowManager.getWindows();
+  for (let i = 0; i < cubes.length; ++i) {
+    const cube = cubes[i];
+    const win  = wins[i];
 
-		// calculate the new position based on the delta between current offset and new offset times a falloff value (to create the nice smoothing effect)
-		let falloff = .05;
-		sceneOffset.x = sceneOffset.x + ((sceneOffsetTarget.x - sceneOffset.x) * falloff);
-		sceneOffset.y = sceneOffset.y + ((sceneOffsetTarget.y - sceneOffset.y) * falloff);
+    const target = {
+      x: win.shape.x + win.shape.w * 0.5 + cubeControls.posX,
+      y: win.shape.y + win.shape.h * 0.5 + cubeControls.posY,
+    };
 
-		// set the world position to the offset
-		world.position.x = sceneOffset.x;
-		world.position.y = sceneOffset.y;
+    cube.position.x += (target.x - cube.position.x) * k;
+    cube.position.y += (target.y - cube.position.y) * k;
 
-		let wins = windowManager.getWindows();
+    cube.position.x += cubeControls.velocityX * dt;
+    cube.position.y += cubeControls.velocityY * dt;
 
+    cube.rotation.set(
+      cubeControls.rotX + now * 0.5,
+      cubeControls.rotY + now * 0.3,
+      cubeControls.rotZ
+    );
+  }
 
-		// loop through all our cubes and update their positions based on current window positions
-		for (let i = 0; i < cubes.length; i++)
-		{
-			let cube = cubes[i];
-			let win = wins[i];
-			let _t = t;// + i * .2;
+}
+  requestAnimationFrame(render);
+}
 
-                        let posTarget = {
-                                x: win.shape.x + (win.shape.w * .5) + cubeControls.posX,
-                                y: win.shape.y + (win.shape.h * .5) + cubeControls.posY
-                        };
+/* ================================================================ */
+/* ███  RESIZE HANDLER                                             ███ */
+function resize () {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
 
-                        cube.position.x = cube.position.x + (posTarget.x - cube.position.x) * falloff;
-                        cube.position.y = cube.position.y + (posTarget.y - cube.position.y) * falloff;
-                        cube.position.x += cubeControls.velocityX * dt;
-                        cube.position.y += cubeControls.velocityY * dt;
-                        cube.rotation.x = cubeControls.rotX + _t * .5;
-                        cube.rotation.y = cubeControls.rotY + _t * .3;
-                        cube.rotation.z = cubeControls.rotZ;
-                };
+  camera.left   = 0;
+  camera.right  = w;
+  camera.top    = 0;
+  camera.bottom = h;
+  camera.updateProjectionMatrix();
 
-		renderer.render(scene, camera);
-		requestAnimationFrame(render);
-	}
-
-
-	// resize the renderer to fit the window size
-	function resize ()
-	{
-		let width = window.innerWidth;
-		let height = window.innerHeight
-		
-		camera = new t.OrthographicCamera(0, width, 0, height, -10000, 10000);
-		camera.updateProjectionMatrix();
-		renderer.setSize( width, height );
-	}
+  renderer.setSize(w, h);
 }
