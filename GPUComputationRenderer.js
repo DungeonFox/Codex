@@ -1,5 +1,8 @@
 // Minimal GPUComputationRenderer adapted from NIfTI project
-import * as THREE from './three.r124.min.js';
+// THREE is loaded globally via a script tag in index.html
+// Access THREE from the global scope so the module works when the library is
+// included via a script tag.
+const THREE = globalThis.THREE;
 
 class GPUComputationRenderer {
     constructor(sizeX, sizeY, renderer) {
