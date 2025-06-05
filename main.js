@@ -1,5 +1,7 @@
 import WindowManager from './WindowManager.js'
 import GPUComputationRenderer from './GPUComputationRenderer.js'
+import { createColorShader } from './computeShader.js'
+import { createSubCubeMaterial, createCubeMaterial } from './materials.js'
 
 
 
@@ -132,19 +134,7 @@ else
                 colorTexSize = {x: n, y: n};
                 gpu = new GPUComputationRenderer(n, n, renderer);
                 colorTexture = gpu.createTexture();
-                colorVar = gpu.addVariable('colorTex', `
-                        uniform float time;
-                        void main() {
-                                vec2 uv = gl_FragCoord.xy / resolution;
-                                float i = uv.y * resolution.x + uv.x;
-                                vec3 col = vec3(
-                                        0.5 + 0.5 * sin(time + i * 0.1),
-                                        0.5 + 0.5 * sin(time * 0.5 + i * 0.2),
-                                        0.5 + 0.5 * sin(time * 0.8 + i * 0.3)
-                                );
-                                gl_FragColor = vec4(col, 1.0);
-                        }
-                `, colorTexture);
+                colorVar = gpu.addVariable('colorTex', createColorShader(), colorTexture);
                 colorVar.material.uniforms.time = {value: 0};
                 let err = gpu.init();
                 if (err) console.error(err);
@@ -292,7 +282,7 @@ else
                         if (win.metaData && win.metaData.color) color = win.metaData.color;
                         let cube = new t.Mesh(
                                 new t.BoxBufferGeometry(cubeControls.width, cubeControls.height, baseDepth),
-                                new t.MeshBasicMaterial({color: color, wireframe: true})
+                                createCubeMaterial(color)
                         );
                         cube.userData.winId = win.id;
                         cube.userData.metaData = win.metaData || {color: color, subColors: {}};
@@ -430,7 +420,7 @@ else
                 let count = rows * cols * layers;
                 if (!gpu) initGPU(count);
                 let geometry = new t.BoxBufferGeometry(subW, subH, subD);
-                let material = new t.MeshBasicMaterial({wireframe: true, vertexColors: true});
+                let material = createSubCubeMaterial();
                 let mesh = new t.InstancedMesh(geometry, material, count);
                 mesh.instanceMatrix.setUsage(t.DynamicDrawUsage);
 
