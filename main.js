@@ -1,4 +1,5 @@
 import WindowManager from './WindowManager.js'
+import GPUComputationRenderer from './GPUComputationRenderer.js'
 
 
 
@@ -9,6 +10,10 @@ let pixR = window.devicePixelRatio ? window.devicePixelRatio : 1;
 let cubes = [];
 let gui;
 let thisWindowId;
+let gpu;
+let colorVar;
+let colorTexSize = {x: 1, y: 1};
+let colorTexture;
 let cubeControls = {
     width: 150,
     height: 150,
@@ -91,6 +96,7 @@ else
 		setTimeout(() => {
                         setupScene();
                         setupGUI();
+                        setupControls();
                         setupWindowManager();
 			resize();
 			updateWindowShape(false);
@@ -121,6 +127,29 @@ else
                 document.body.appendChild( renderer.domElement );
         }
 
+        function initGPU(count) {
+                let n = Math.ceil(Math.sqrt(count));
+                colorTexSize = {x: n, y: n};
+                gpu = new GPUComputationRenderer(n, n, renderer);
+                colorTexture = gpu.createTexture();
+                colorVar = gpu.addVariable('colorTex', `
+                        uniform float time;
+                        void main() {
+                                vec2 uv = gl_FragCoord.xy / resolution;
+                                float i = uv.y * resolution.x + uv.x;
+                                vec3 col = vec3(
+                                        0.5 + 0.5 * sin(time + i * 0.1),
+                                        0.5 + 0.5 * sin(time * 0.5 + i * 0.2),
+                                        0.5 + 0.5 * sin(time * 0.8 + i * 0.3)
+                                );
+                                gl_FragColor = vec4(col, 1.0);
+                        }
+                `, colorTexture);
+                colorVar.material.uniforms.time = {value: 0};
+                let err = gpu.init();
+                if (err) console.error(err);
+        }
+
         let selRowCtrl, selColCtrl, selLayerCtrl;
 
         function setupGUI ()
@@ -146,6 +175,39 @@ else
                 selColCtrl = gui.add(cubeControls, 'selCol', indexToCoord(0, cubeControls.columns), indexToCoord(cubeControls.columns - 1, cubeControls.columns), 1).onChange(updateSelectedSubCubeColor);
                 selLayerCtrl = gui.add(cubeControls, 'selLayer', indexToCoord(0, cubeControls.subDepth), indexToCoord(cubeControls.subDepth - 1, cubeControls.subDepth), 1).onChange(updateSelectedSubCubeColor);
                 gui.addColor(cubeControls, 'selColor').onChange(updateSelectedSubCubeColor);
+        }
+
+        function setupControls() {
+                const fileInput = document.getElementById('colorFile');
+                const toggleBtn = document.getElementById('toggleGUI');
+                if (fileInput) {
+                        fileInput.addEventListener('input', async (e) => {
+                                const f = e.target.files[0];
+                                if (!f) return;
+                                const text = await f.text();
+                                try {
+                                        const data = JSON.parse(text);
+                                        applyColorData(data);
+                                } catch(err) {
+                                        console.error('invalid color file');
+                                }
+                        });
+                }
+
+                if (toggleBtn) {
+                        toggleBtn.addEventListener('click', toggleGUI);
+                }
+
+                window.addEventListener('keydown', (e) => {
+                        if (e.key === 'Escape') toggleGUI();
+                });
+        }
+
+        function toggleGUI() {
+                if (gui && gui.domElement) {
+                        const d = gui.domElement.style.display === 'none' ? 'block' : 'none';
+                        gui.domElement.style.display = d;
+                }
         }
 
         function refreshSelectionControllers ()
@@ -327,8 +389,25 @@ else
                                 }
                         }
                 });
-                windowManager.updateWindowsLocalStorage();
+               windowManager.updateWindowsLocalStorage();
        }
+
+        function applyColorData(arr) {
+                cubes.forEach((cube) => {
+                        if (cube.userData.subMesh) {
+                                const count = cube.userData.subMesh.count;
+                                for (let i = 0; i < Math.min(count, arr.length); i++) {
+                                        let cval = arr[i];
+                                        if (Array.isArray(cval) && cval.length >= 3) {
+                                                cube.userData.subMesh.instanceColor.array[i * 3] = cval[0];
+                                                cube.userData.subMesh.instanceColor.array[i * 3 + 1] = cval[1];
+                                                cube.userData.subMesh.instanceColor.array[i * 3 + 2] = cval[2];
+                                        }
+                                }
+                                cube.userData.subMesh.instanceColor.needsUpdate = true;
+                        }
+                });
+        }
 
         function createSubCubeGrid (cube, baseDepth = cubeControls.depth)
         {
@@ -349,6 +428,7 @@ else
                 let subD = baseDepth / layers;
 
                 let count = rows * cols * layers;
+                if (!gpu) initGPU(count);
                 let geometry = new t.BoxBufferGeometry(subW, subH, subD);
                 let material = new t.MeshBasicMaterial({wireframe: true, vertexColors: true});
                 let mesh = new t.InstancedMesh(geometry, material, count);
@@ -394,6 +474,19 @@ else
 
                 mesh.instanceColor = new t.InstancedBufferAttribute(colors, 3);
                 mesh.instanceColor.needsUpdate = true;
+                if (gpu && colorVar) {
+                        colorVar.material.uniforms.time.value = internalTime;
+                        gpu.compute();
+                        let read = new Float32Array(colorTexSize.x * colorTexSize.y * 4);
+                        renderer.readRenderTargetPixels(gpu.getCurrentRenderTarget(colorVar), 0, 0, colorTexSize.x, colorTexSize.y, read);
+                        for (let i = 0; i < count; i++) {
+                                let idx = i * 4;
+                                mesh.instanceColor.array[i * 3] = read[idx];
+                                mesh.instanceColor.array[i * 3 + 1] = read[idx + 1];
+                                mesh.instanceColor.array[i * 3 + 2] = read[idx + 2];
+                        }
+                        mesh.instanceColor.needsUpdate = true;
+                }
                 mesh.instanceMatrix.needsUpdate = true;
 
                 cube.userData.subMesh = mesh;
@@ -458,9 +551,28 @@ else
                             cube.position.x += cubeControls.velocityX * dt;
                             cube.position.y += cubeControls.velocityY * dt;
                             cube.rotation.x = cubeControls.rotX + _t * .5;
-                            cube.rotation.y = cubeControls.rotY + _t * .3;
-                            cube.rotation.z = cubeControls.rotZ;
+                    cube.rotation.y = cubeControls.rotY + _t * .3;
+                    cube.rotation.z = cubeControls.rotZ;
                     }
+
+                if (gpu && colorVar) {
+                        colorVar.material.uniforms.time.value = internalTime;
+                        gpu.compute();
+                        let read = new Float32Array(colorTexSize.x * colorTexSize.y * 4);
+                        renderer.readRenderTargetPixels(gpu.getCurrentRenderTarget(colorVar), 0, 0, colorTexSize.x, colorTexSize.y, read);
+                        cubes.forEach((cube) => {
+                                if (cube.userData.subMesh) {
+                                        let count = cube.userData.subMesh.count;
+                                        for (let i = 0; i < count; i++) {
+                                                let idx = i * 4;
+                                                cube.userData.subMesh.instanceColor.array[i * 3] = read[idx];
+                                                cube.userData.subMesh.instanceColor.array[i * 3 + 1] = read[idx + 1];
+                                                cube.userData.subMesh.instanceColor.array[i * 3 + 2] = read[idx + 2];
+                                        }
+                                        cube.userData.subMesh.instanceColor.needsUpdate = true;
+                                }
+                        });
+                }
 
 		renderer.render(scene, camera);
 		requestAnimationFrame(render);
