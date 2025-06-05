@@ -11,11 +11,16 @@ let gui;
 let cubeControls = {
     width: 150,
     height: 150,
+    subDepth: 150,
+    rows: 1,
+    columns: 1,
     posX: 0,
     posY: 0,
     velocityX: 0,
     velocityY: 0,
     color: '#ff0000',
+    subColor: '#ff0000',
+    matchDepth: false,
     rotX: 0,
     rotY: 0,
     rotZ: 0
@@ -106,11 +111,16 @@ else
                 gui = new dat.GUI();
                 gui.add(cubeControls, 'width', 50, 300, 10).onChange(updateCubeSize);
                 gui.add(cubeControls, 'height', 50, 300, 10).onChange(updateCubeSize);
+                gui.add(cubeControls, 'rows', 1, 10, 1).onChange(updateSubCubeLayout);
+                gui.add(cubeControls, 'columns', 1, 10, 1).onChange(updateSubCubeLayout);
+                gui.add(cubeControls, 'subDepth', 10, 300, 10).onChange(() => { updateCubeSize(); updateSubCubeLayout(); });
                 gui.add(cubeControls, 'posX', -300, 300, 1);
                 gui.add(cubeControls, 'posY', -300, 300, 1);
                 gui.add(cubeControls, 'velocityX', -10, 10, 0.1);
                 gui.add(cubeControls, 'velocityY', -10, 10, 0.1);
                 gui.addColor(cubeControls, 'color').onChange(updateCubeColor);
+                gui.addColor(cubeControls, 'subColor').onChange(updateSubCubeColor);
+                gui.add(cubeControls, 'matchDepth').onChange(updateCubeSize);
                 gui.add(cubeControls, 'rotX', 0, Math.PI * 2, 0.1);
                 gui.add(cubeControls, 'rotY', 0, Math.PI * 2, 0.1);
                 gui.add(cubeControls, 'rotZ', 0, Math.PI * 2, 0.1);
@@ -152,7 +162,9 @@ else
                 for (let i = 0; i < wins.length; i++)
                 {
                         let win = wins[i];
-
+                        let depth = cubeControls.matchDepth ? cubeControls.subDepth : cubeControls.width;
+                        let cube = new t.Mesh(
+                                new t.BoxGeometry(cubeControls.width, cubeControls.height, depth),
                         let cube = new t.Mesh(
                                 new t.BoxGeometry(cubeControls.width, cubeControls.height, cubeControls.width),
                                 new t.MeshBasicMaterial({color: cubeControls.color, wireframe: true})
@@ -160,11 +172,81 @@ else
                         cube.position.x = win.shape.x + (win.shape.w * .5);
                         cube.position.y = win.shape.y + (win.shape.h * .5);
 
+                        createSubCubeGrid(cube);
+
                         world.add(cube);
                         cubes.push(cube);
                 }
         }
 
+       function updateCubeSize ()
+       {
+               cubes.forEach((cube) => {
+                       cube.geometry.dispose();
+                        let depth = cubeControls.matchDepth ? cubeControls.subDepth : cubeControls.width;
+                        cube.geometry = new t.BoxGeometry(cubeControls.width, cubeControls.height, depth);
+                        createSubCubeGrid(cube);
+               });
+       }
+
+        function updateCubeColor ()
+        {
+                cubes.forEach((cube) => {
+                        cube.material.color.set(cubeControls.color);
+                });
+        }
+
+        function updateSubCubeColor ()
+        {
+                cubes.forEach((cube) => {
+                        if (cube.userData.subCubes) {
+                                cube.userData.subCubes.forEach((sc) => {
+                                        sc.material.color.set(cubeControls.subColor);
+                                });
+                        }
+                });
+        }
+
+        function createSubCubeGrid (cube)
+        {
+                if (!cube.userData.subCubes) cube.userData.subCubes = [];
+
+                cube.userData.subCubes.forEach((sc) => {
+                        cube.remove(sc);
+                        sc.geometry.dispose();
+                        sc.material.dispose();
+                });
+                cube.userData.subCubes = [];
+
+                let rows = Math.max(1, cubeControls.rows | 0);
+                let cols = Math.max(1, cubeControls.columns | 0);
+
+                let subW = cubeControls.width / cols;
+                let subH = cubeControls.height / rows;
+                let subD = cubeControls.subDepth;
+
+                for (let r = 0; r < rows; r++)
+                {
+                        for (let c = 0; c < cols; c++)
+                        {
+                                let sc = new t.Mesh(
+                                        new t.BoxGeometry(subW, subH, subD),
+                                        new t.MeshBasicMaterial({color: cubeControls.subColor, wireframe: true})
+                                );
+                                sc.position.x = -cubeControls.width / 2 + subW * (c + 0.5);
+                                sc.position.y = -cubeControls.height / 2 + subH * (r + 0.5);
+                                cube.add(sc);
+                                cube.userData.subCubes.push(sc);
+                        }
+                }
+        }
+
+        function updateSubCubeLayout ()
+        {
+                cubes.forEach((cube) => {
+                        createSubCubeGrid(cube);
+                });
+                updateSubCubeColor();
         function updateCubeSize ()
         {
                 cubes.forEach((cube) => {
