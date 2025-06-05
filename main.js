@@ -253,25 +253,25 @@ function render () {
   /* ------- clock */
   const now = getTimeSeconds();
   const dt  = now - internalTime;
-  internalTime = now;
+                    for (let i = 0; i < cubes.length; i++)
+                    {
+                            let cube = cubes[i];
+                            let win = wins[i];
+                            let _t = time;// + i * .2;
 
-  /* ------- WindowManager heartbeat */
-  windowManager.update();
+                            let posTarget = {
+                                    x: win.shape.x + (win.shape.w * .5) + cubeControls.posX,
+                                    y: win.shape.y + (win.shape.h * .5) + cubeControls.posY
+                            };
 
-  /* ------- smooth scene pan to follow multi-window layout */
-  const k = 0.05;                                        // easing factor
-  sceneOffset.x += (sceneOffsetTarget.x - sceneOffset.x) * k;
-  sceneOffset.y += (sceneOffsetTarget.y - sceneOffset.y) * k;
-  world.position.set(sceneOffset.x, sceneOffset.y, 0);
-
-  /* ------- per-cube transforms */
-  const wins = windowManager.getWindows();
-  for (let i = 0; i < cubes.length; ++i) {
-    const cube = cubes[i];
-    const win  = wins[i];
-
-    const target = {
-      x: win.shape.x + win.shape.w * 0.5 + cubeControls.posX,
+                            cube.position.x = cube.position.x + (posTarget.x - cube.position.x) * falloff;
+                            cube.position.y = cube.position.y + (posTarget.y - cube.position.y) * falloff;
+                            cube.position.x += cubeControls.velocityX * dt;
+                            cube.position.y += cubeControls.velocityY * dt;
+                            cube.rotation.x = cubeControls.rotX + _t * .5;
+                            cube.rotation.y = cubeControls.rotY + _t * .3;
+                            cube.rotation.z = cubeControls.rotZ;
+                    }
       y: win.shape.y + win.shape.h * 0.5 + cubeControls.posY,
     };
 
