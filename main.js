@@ -103,7 +103,7 @@ let windowManager;
 let initialized = false;
 
 function loadGlobalSettings() {
-    let stored = localStorage.getItem('globalSettings');
+    let stored = localStorage.getItem(`settings_${thisWindowId}`);
     if (stored) {
         try {
             let obj = JSON.parse(stored);
@@ -124,7 +124,7 @@ function saveGlobalSettings() {
     globalSettings.rotX = cubeControls.rotX;
     globalSettings.rotY = cubeControls.rotY;
     globalSettings.rotZ = cubeControls.rotZ;
-    localStorage.setItem('globalSettings', JSON.stringify(globalSettings));
+    localStorage.setItem(`settings_${thisWindowId}`, JSON.stringify(globalSettings));
 }
 
 // get time in seconds since beginning of the day (so that all windows use the same time)
@@ -150,7 +150,7 @@ else
         });
 
         window.addEventListener('storage', (e) => {
-                if (e.key === 'globalSettings' && e.newValue) {
+                if (e.key === `settings_${thisWindowId}` && e.newValue) {
                         try {
                                 let obj = JSON.parse(e.newValue);
                                 globalSettings = Object.assign(globalSettings, obj);
@@ -174,20 +174,26 @@ else
         {
                 initialized = true;
 
-                loadGlobalSettings();
-
-		// add a short timeout because window.offsetX reports wrong values before a short period 
-		setTimeout(() => {
+                // add a short timeout because window.offsetX reports wrong values before a short period
+                setTimeout(() => {
+                        setupWindowManager();
+                        loadGlobalSettings();
+                        updateAnimButton();
+                        windowManager.getThisWindowData().metaData.animate = cubeControls.animate;
+                        windowManager.getThisWindowData().metaData.rotX = cubeControls.rotX;
+                        windowManager.getThisWindowData().metaData.rotY = cubeControls.rotY;
+                        windowManager.getThisWindowData().metaData.rotZ = cubeControls.rotZ;
+                        windowManager.updateWindowsLocalStorage();
                         setupScene();
                         setupGUI();
                         setupControls();
-                        setupWindowManager();
-			resize();
-			updateWindowShape(false);
-			render();
-			window.addEventListener('resize', resize);
-		}, 500)	
-	}
+                        windowsUpdated();
+                        resize();
+                        updateWindowShape(false);
+                        render();
+                        window.addEventListener('resize', resize);
+                }, 500)
+        }
 
         function setupScene ()
         {
@@ -368,8 +374,7 @@ else
                 document.body.dataset.idWindow = thisWindowId;
                 document.body.dataset.idColor = metaData.color;
 
-                // call update windows initially (it will later be called by the win change callback)
-                windowsUpdated();
+                // first update happens after loading stored settings
 	}
 
 	function windowsUpdated ()
