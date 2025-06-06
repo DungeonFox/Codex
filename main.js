@@ -130,12 +130,19 @@ else
         }
 
         function initGPU(count) {
-                let n = Math.ceil(Math.sqrt(count));
-                colorTexSize = {x: n, y: n};
-                gpu = new GPUComputationRenderer(n, n, renderer);
+                let needed = Math.ceil(Math.sqrt(count));
+
+                if (gpu && gpu.sizeX >= needed && gpu.sizeY >= needed) {
+                        // Existing GPU renderer is large enough; just update tex size reference
+                        colorTexSize = { x: gpu.sizeX, y: gpu.sizeY };
+                        return;
+                }
+
+                colorTexSize = { x: needed, y: needed };
+                gpu = new GPUComputationRenderer(needed, needed, renderer);
                 colorTexture = gpu.createTexture();
                 colorVar = gpu.addVariable('colorTex', createColorShader(), colorTexture);
-                colorVar.material.uniforms.time = {value: 0};
+                colorVar.material.uniforms.time = { value: 0 };
                 let err = gpu.init();
                 if (err) console.error(err);
         }
@@ -420,7 +427,12 @@ else
                 let subD = baseDepth / layers;
 
                 let count = rows * cols * layers;
-                if (!gpu) initGPU(count);
+                if (!gpu || (gpu.sizeX * gpu.sizeY) < count) {
+                        initGPU(count);
+                } else {
+                        // update the reference texture size in case it was larger
+                        colorTexSize = { x: gpu.sizeX, y: gpu.sizeY };
+                }
                 let geometry = new t.BoxBufferGeometry(subW, subH, subD);
                 let material = createSubCubeMaterial();
                 let mesh = new t.InstancedMesh(geometry, material, count);
