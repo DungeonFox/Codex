@@ -40,6 +40,13 @@ let cubeControls = {
     selColor: '#ff0000'
 };
 
+let globalSettings = {
+    animate: cubeControls.animate,
+    rotX: cubeControls.rotX,
+    rotY: cubeControls.rotY,
+    rotZ: cubeControls.rotZ
+};
+
 function indexToCoord (index, count) {
     return index - Math.floor(count / 2);
 }
@@ -95,6 +102,31 @@ let internalTime = getTime();
 let windowManager;
 let initialized = false;
 
+function loadGlobalSettings() {
+    let stored = localStorage.getItem('globalSettings');
+    if (stored) {
+        try {
+            let obj = JSON.parse(stored);
+            if (typeof obj.animate === 'boolean') globalSettings.animate = obj.animate;
+            if (typeof obj.rotX === 'number') globalSettings.rotX = obj.rotX;
+            if (typeof obj.rotY === 'number') globalSettings.rotY = obj.rotY;
+            if (typeof obj.rotZ === 'number') globalSettings.rotZ = obj.rotZ;
+        } catch(e) {}
+    }
+    cubeControls.animate = globalSettings.animate;
+    cubeControls.rotX = globalSettings.rotX;
+    cubeControls.rotY = globalSettings.rotY;
+    cubeControls.rotZ = globalSettings.rotZ;
+}
+
+function saveGlobalSettings() {
+    globalSettings.animate = cubeControls.animate;
+    globalSettings.rotX = cubeControls.rotX;
+    globalSettings.rotY = cubeControls.rotY;
+    globalSettings.rotZ = cubeControls.rotZ;
+    localStorage.setItem('globalSettings', JSON.stringify(globalSettings));
+}
+
 // get time in seconds since beginning of the day (so that all windows use the same time)
 function getTime ()
 {
@@ -107,15 +139,29 @@ if (new URLSearchParams(window.location.search).get("clear"))
 	localStorage.clear();
 }
 else
-{	
-	// this code is essential to circumvent that some browsers preload the content of some pages before you actually hit the url
-	document.addEventListener("visibilitychange", () => 
-	{
-		if (document.visibilityState != 'hidden' && !initialized)
-		{
-			init();
-		}
-	});
+{
+        // this code is essential to circumvent that some browsers preload the content of some pages before you actually hit the url
+        document.addEventListener("visibilitychange", () =>
+        {
+                if (document.visibilityState != 'hidden' && !initialized)
+                {
+                        init();
+                }
+        });
+
+        window.addEventListener('storage', (e) => {
+                if (e.key === 'globalSettings' && e.newValue) {
+                        try {
+                                let obj = JSON.parse(e.newValue);
+                                globalSettings = Object.assign(globalSettings, obj);
+                                cubeControls.animate = globalSettings.animate;
+                                cubeControls.rotX = globalSettings.rotX;
+                                cubeControls.rotY = globalSettings.rotY;
+                                cubeControls.rotZ = globalSettings.rotZ;
+                                updateAnimButton();
+                        } catch(_) {}
+                }
+        });
 
 	window.onload = () => {
 		if (document.visibilityState != 'hidden')
@@ -124,9 +170,11 @@ else
 		}
 	};
 
-	function init ()
-	{
-		initialized = true;
+        function init ()
+        {
+                initialized = true;
+
+                loadGlobalSettings();
 
 		// add a short timeout because window.offsetX reports wrong values before a short period 
 		setTimeout(() => {
@@ -199,10 +247,10 @@ else
                 gui.addColor(cubeControls, 'color').onChange(updateCubeColor);
                 gui.addColor(cubeControls, 'subColor').onChange(updateSubCubeColor);
                 gui.add(cubeControls, 'matchDepth').onChange(updateCubeSize);
-                gui.add(cubeControls, 'animate').onChange(updateAnimButton);
-                gui.add(cubeControls, 'rotX', 0, Math.PI * 2, 0.1);
-                gui.add(cubeControls, 'rotY', 0, Math.PI * 2, 0.1);
-                gui.add(cubeControls, 'rotZ', 0, Math.PI * 2, 0.1);
+                gui.add(cubeControls, 'animate').onChange(() => { updateAnimButton(); saveGlobalSettings(); });
+                gui.add(cubeControls, 'rotX', 0, Math.PI * 2, 0.1).onChange(updateRotation);
+                gui.add(cubeControls, 'rotY', 0, Math.PI * 2, 0.1).onChange(updateRotation);
+                gui.add(cubeControls, 'rotZ', 0, Math.PI * 2, 0.1).onChange(updateRotation);
                 selRowCtrl = gui.add(cubeControls, 'selRow', indexToCoord(0, cubeControls.rows), indexToCoord(cubeControls.rows - 1, cubeControls.rows), 1).onChange(updateSelectedSubCubeColor);
                 selColCtrl = gui.add(cubeControls, 'selCol', indexToCoord(0, cubeControls.columns), indexToCoord(cubeControls.columns - 1, cubeControls.columns), 1).onChange(updateSelectedSubCubeColor);
                 selLayerCtrl = gui.add(cubeControls, 'selLayer', indexToCoord(0, cubeControls.subDepth), indexToCoord(cubeControls.subDepth - 1, cubeControls.subDepth), 1).onChange(updateSelectedSubCubeColor);
@@ -252,6 +300,15 @@ else
         function toggleAnimation() {
                 cubeControls.animate = !cubeControls.animate;
                 updateAnimButton();
+                saveGlobalSettings();
+                let wins = windowManager ? windowManager.getWindows() : [];
+                cubes.forEach((cube, idx) => {
+                        if (cube.userData.winId === thisWindowId && wins[idx] && wins[idx].metaData) {
+                                wins[idx].metaData.animate = cubeControls.animate;
+                                cube.userData.metaData = wins[idx].metaData;
+                        }
+                });
+                if (windowManager) windowManager.updateWindowsLocalStorage();
         }
 
         function updateAnimButton() {
@@ -294,7 +351,14 @@ else
                 windowManager.setWinChangeCallback(windowsUpdated);
 
                 // add custom metadata so each window can store its own colour and sub-cube colours
-                let metaData = {color: cubeControls.color, subColors: {}};
+                let metaData = {
+                        color: cubeControls.color,
+                        subColors: {},
+                        animate: cubeControls.animate,
+                        rotX: cubeControls.rotX,
+                        rotY: cubeControls.rotY,
+                        rotZ: cubeControls.rotZ
+                };
 
                 // initialise window manager and register this window
                 windowManager.init(metaData);
@@ -344,7 +408,14 @@ else
                                 createCubeMaterial(color)
                         );
                         cube.userData.winId = win.id;
-                        cube.userData.metaData = win.metaData || {color: color, subColors: {}};
+                        cube.userData.metaData = win.metaData || {
+                                color: color,
+                                subColors: {},
+                                animate: cubeControls.animate,
+                                rotX: cubeControls.rotX,
+                                rotY: cubeControls.rotY,
+                                rotZ: cubeControls.rotZ
+                        };
                         cube.position.x = win.shape.x + (win.shape.w * .5);
                         cube.position.y = win.shape.y + (win.shape.h * .5);
 
@@ -424,6 +495,20 @@ else
                        }
                });
                windowManager.updateWindowsLocalStorage();
+       }
+
+       function updateRotation() {
+                cubes.forEach((cube) => {
+                        if (cube.userData.winId === thisWindowId) {
+                                let md = cube.userData.metaData || {};
+                                md.rotX = cubeControls.rotX;
+                                md.rotY = cubeControls.rotY;
+                                md.rotZ = cubeControls.rotZ;
+                                cube.userData.metaData = md;
+                        }
+                });
+                saveGlobalSettings();
+                windowManager.updateWindowsLocalStorage();
        }
 
        function updateSelectedSubCubeColor ()
