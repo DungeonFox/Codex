@@ -30,6 +30,7 @@ let cubeControls = {
     color: '#ff0000',
     subColor: '#ff0000',
     matchDepth: false,
+    animate: true,
     rotX: 0,
     rotY: 0,
     rotZ: 0,
@@ -198,6 +199,7 @@ else
                 gui.addColor(cubeControls, 'color').onChange(updateCubeColor);
                 gui.addColor(cubeControls, 'subColor').onChange(updateSubCubeColor);
                 gui.add(cubeControls, 'matchDepth').onChange(updateCubeSize);
+                gui.add(cubeControls, 'animate').onChange(updateAnimButton);
                 gui.add(cubeControls, 'rotX', 0, Math.PI * 2, 0.1);
                 gui.add(cubeControls, 'rotY', 0, Math.PI * 2, 0.1);
                 gui.add(cubeControls, 'rotZ', 0, Math.PI * 2, 0.1);
@@ -210,6 +212,7 @@ else
         function setupControls() {
                 let fileInput = document.getElementById('colorFile');
                 let toggleBtn = document.getElementById('toggleGUI');
+                let animBtn = document.getElementById('toggleAnim');
                 if (fileInput) {
                         fileInput.addEventListener('input', async (e) => {
                                 let f = e.target.files[0];
@@ -228,8 +231,14 @@ else
                         toggleBtn.addEventListener('click', toggleGUI);
                 }
 
+                if (animBtn) {
+                        animBtn.addEventListener('click', toggleAnimation);
+                        updateAnimButton();
+                }
+
                 window.addEventListener('keydown', (e) => {
                         if (e.key === 'Escape') toggleGUI();
+                        if (e.key === 'p') toggleAnimation();
                 });
         }
 
@@ -238,6 +247,16 @@ else
                         let d = gui.domElement.style.display === 'none' ? 'block' : 'none';
                         gui.domElement.style.display = d;
                 }
+        }
+
+        function toggleAnimation() {
+                cubeControls.animate = !cubeControls.animate;
+                updateAnimButton();
+        }
+
+        function updateAnimButton() {
+                let btn = document.getElementById('toggleAnim');
+                if (btn) btn.textContent = cubeControls.animate ? 'Pause Anim' : 'Resume Anim';
         }
 
         function refreshSelectionControllers ()
@@ -571,8 +590,8 @@ else
         function render ()
         {
                 let time = getTime();
-                let dt = time - internalTime;
-                internalTime = time;
+                let dt = cubeControls.animate ? time - internalTime : 0;
+                if (cubeControls.animate) internalTime = time;
 
 		windowManager.update();
 
@@ -594,7 +613,7 @@ else
                     {
                             let cube = cubes[i];
                             let win = wins[i];
-                            let _t = time;// + i * .2;
+                            let _t = internalTime;// + i * .2;
 
                             let posTarget = {
                                     x: win.shape.x + (win.shape.w * .5) + cubeControls.posX,
@@ -610,7 +629,7 @@ else
                     cube.rotation.z = cubeControls.rotZ;
                     }
 
-                if (gpu && colorVar) {
+                if (gpu && colorVar && cubeControls.animate) {
                         colorVar.material.uniforms.time.value = internalTime;
                         gpu.compute();
                         let read = new Float32Array(colorTexSize.x * colorTexSize.y * 4);
