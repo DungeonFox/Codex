@@ -649,10 +649,20 @@ else
                                 }
 
                                 let { lineGeom, pointGeom } = createLineCubeGeometry(subW, subH, subD);
-                                let mat = new t.LineBasicMaterial();
+                                let mat = new t.LineBasicMaterial({
+                                        transparent: true,
+                                        blending: t.AdditiveBlending,
+                                        depthWrite: false
+                                });
                                 mat.color.fromArray(colors, idx * 3);
                                 let line = new t.LineSegments(lineGeom, mat);
-                                let pMat = new t.PointsMaterial({ size: 4, sizeAttenuation: false });
+                                let pMat = new t.PointsMaterial({
+                                        size: 4,
+                                        sizeAttenuation: false,
+                                        transparent: true,
+                                        blending: t.AdditiveBlending,
+                                        depthWrite: false
+                                });
                                 pMat.color.fromArray(colors, idx * 3);
                                 let points = new t.Points(pointGeom, pMat);
                                 let container = new t.Group();
