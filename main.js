@@ -514,7 +514,8 @@ else
                                 }
 
                                 let { geometry } = createLineCubeGeometry(subW, subH, subD);
-                                let mat = new t.LineBasicMaterial({ color: new t.Color(colors[index * 3], colors[index * 3 + 1], colors[index * 3 + 2]) });
+                                let mat = new t.LineBasicMaterial();
+                                mat.color.fromArray(colors, index * 3);
                                 let line = new t.LineSegments(geometry, mat);
                                 line.position.set(
                                         -cubeControls.width / 2 + subW * (c + 0.5),
