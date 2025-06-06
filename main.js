@@ -679,9 +679,9 @@ else
 
         function render ()
         {
-                let time = getTime();
-                let dt = cubeControls.animate ? time - internalTime : 0;
-                if (cubeControls.animate) internalTime = time;
+                let now = getTime();
+                let deltaTime = now - internalTime;
+                internalTime = now;
 
 		windowManager.update();
 
@@ -695,31 +695,39 @@ else
 		world.position.x = sceneOffset.x;
 		world.position.y = sceneOffset.y;
 
-		let wins = windowManager.getWindows();
+                let wins = windowManager.getWindows();
 
 
-		// loop through all our cubes and update their positions based on current window positions
-                    for (let i = 0; i < cubes.length; i++)
-                    {
-                            let cube = cubes[i];
-                            let win = wins[i];
-                            let _t = internalTime;// + i * .2;
+                // loop through all our cubes and update their positions based on current window positions
+                for (let i = 0; i < cubes.length; i++)
+                {
+                        let cube = cubes[i];
+                        let win = wins[i];
+                        let _t = internalTime;
 
-                            let posTarget = {
-                                    x: win.shape.x + (win.shape.w * .5) + cubeControls.posX,
-                                    y: win.shape.y + (win.shape.h * .5) + cubeControls.posY
-                            };
+                        let posTarget = {
+                                x: win.shape.x + (win.shape.w * .5) + cubeControls.posX,
+                                y: win.shape.y + (win.shape.h * .5) + cubeControls.posY
+                        };
 
-                            cube.position.x = cube.position.x + (posTarget.x - cube.position.x) * falloff;
-                            cube.position.y = cube.position.y + (posTarget.y - cube.position.y) * falloff;
-                            cube.position.x += cubeControls.velocityX * dt;
-                            cube.position.y += cubeControls.velocityY * dt;
-                            cube.rotation.x = cubeControls.rotX + _t * .5;
-                    cube.rotation.y = cubeControls.rotY + _t * .3;
-                    cube.rotation.z = cubeControls.rotZ;
-                    }
+                        cube.position.x = cube.position.x + (posTarget.x - cube.position.x) * falloff;
+                        cube.position.y = cube.position.y + (posTarget.y - cube.position.y) * falloff;
 
-                if (gpu && colorVar && cubeControls.animate) {
+                        let md = cube.userData.metaData || {};
+                        let animate = md.animate !== undefined ? md.animate : cubeControls.animate;
+                        let rotX = md.rotX !== undefined ? md.rotX : cubeControls.rotX;
+                        let rotY = md.rotY !== undefined ? md.rotY : cubeControls.rotY;
+                        let rotZ = md.rotZ !== undefined ? md.rotZ : cubeControls.rotZ;
+
+                        let cubeDt = animate ? deltaTime : 0;
+                        cube.position.x += cubeControls.velocityX * cubeDt;
+                        cube.position.y += cubeControls.velocityY * cubeDt;
+                        cube.rotation.x = rotX + (animate ? _t * .5 : 0);
+                        cube.rotation.y = rotY + (animate ? _t * .3 : 0);
+                        cube.rotation.z = rotZ;
+                }
+
+                if (gpu && colorVar) {
                         colorVar.material.uniforms.time.value = internalTime;
                         gpu.compute();
                         let read = new Float32Array(colorTexSize.x * colorTexSize.y * 4);
