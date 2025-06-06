@@ -78,17 +78,23 @@ function createLineCubeGeometry(w, h, d) {
         [0,4],[1,5],[2,6],[3,7]
     ];
     let path = new t.CurvePath();
-    let verts = [];
+    let lineVerts = [];
     for (let i = 0; i < edges.length; i++) {
         let a = edges[i][0];
         let b = edges[i][1];
         path.add(new t.LineCurve3(corners[a], corners[b]));
-        verts.push(corners[a].x, corners[a].y, corners[a].z);
-        verts.push(corners[b].x, corners[b].y, corners[b].z);
+        lineVerts.push(corners[a].x, corners[a].y, corners[a].z);
+        lineVerts.push(corners[b].x, corners[b].y, corners[b].z);
     }
-    let geom = new t.BufferGeometry();
-    geom.setAttribute('position', new t.Float32BufferAttribute(verts, 3));
-    return { geometry: geom, path };
+    let pointVerts = [];
+    for (let i = 0; i < corners.length; i++) {
+        pointVerts.push(corners[i].x, corners[i].y, corners[i].z);
+    }
+    let lineGeom = new t.BufferGeometry();
+    lineGeom.setAttribute('position', new t.Float32BufferAttribute(lineVerts, 3));
+    let pointGeom = new t.BufferGeometry();
+    pointGeom.setAttribute('position', new t.Float32BufferAttribute(pointVerts, 3));
+    return { lineGeom, pointGeom, path };
 }
 
 let sceneOffsetTarget = {x: 0, y: 0};
@@ -473,8 +479,8 @@ else
                        if (cube.userData.winId === thisWindowId && cube.userData.subGroup) {
                                let color = new t.Color(cubeControls.subColor);
                                let idx = 0;
-                               cube.userData.subGroup.children.forEach(line => {
-                                       line.material.color.copy(color);
+                               cube.userData.subGroup.children.forEach(g => {
+                                       g.children.forEach(obj => { obj.material.color.copy(color); });
                                        if (cube.userData.colorBuffer && cube.userData.colorBuffer.length > idx * 3 + 2) {
                                                cube.userData.colorBuffer[idx * 3] = color.r;
                                                cube.userData.colorBuffer[idx * 3 + 1] = color.g;
@@ -547,9 +553,9 @@ else
                let r = coordToIndex(row, rows);
                let c = coordToIndex(col, cols);
                if (m && m[d] && m[d][r] && m[d][r][c]) {
-                       let line = m[d][r][c];
+                       let group = m[d][r][c];
                        let color = new t.Color(colorStr);
-                       line.material.color.copy(color);
+                       group.children.forEach(obj => obj.material.color.copy(color));
                        let bufferIndex = d * rows * cols + r * cols + c;
                        if (cube.userData.colorBuffer && cube.userData.colorBuffer.length > bufferIndex * 3 + 2) {
                                cube.userData.colorBuffer[bufferIndex * 3] = color.r;
@@ -568,7 +574,8 @@ else
                                for (let i = 0; i < Math.min(cube.userData.subGroup.children.length, arr.length); i++) {
                                        let cval = arr[i];
                                        if (Array.isArray(cval) && cval.length >= 3) {
-                                               cube.userData.subGroup.children[i].material.color.setRGB(cval[0], cval[1], cval[2]);
+                                               let g = cube.userData.subGroup.children[i];
+                                               g.children.forEach(obj => obj.material.color.setRGB(cval[0], cval[1], cval[2]));
                                                if (cube.userData.colorBuffer && cube.userData.colorBuffer.length > i * 3 + 2) {
                                                         cube.userData.colorBuffer[i * 3] = cval[0];
                                                         cube.userData.colorBuffer[i * 3 + 1] = cval[1];
@@ -584,7 +591,12 @@ else
         {
         if (cube.userData.subGroup) {
                 cube.remove(cube.userData.subGroup);
-                cube.userData.subGroup.children.forEach(ch => { ch.geometry.dispose(); ch.material.dispose(); });
+                cube.userData.subGroup.children.forEach(ch => {
+                        ch.traverse(obj => {
+                                if (obj.geometry) obj.geometry.dispose();
+                                if (obj.material) obj.material.dispose();
+                        });
+                });
         }
 
         cube.userData.subMatrix = [];
@@ -636,18 +648,24 @@ else
                                         colors[idx * 3 + 2] = colObj.b;
                                 }
 
-                                let { geometry } = createLineCubeGeometry(subW, subH, subD);
+                                let { lineGeom, pointGeom } = createLineCubeGeometry(subW, subH, subD);
                                 let mat = new t.LineBasicMaterial();
                                 mat.color.fromArray(colors, idx * 3);
-                                let line = new t.LineSegments(geometry, mat);
-                                line.position.set(
+                                let line = new t.LineSegments(lineGeom, mat);
+                                let pMat = new t.PointsMaterial({ size: 4, sizeAttenuation: false });
+                                pMat.color.fromArray(colors, idx * 3);
+                                let points = new t.Points(pointGeom, pMat);
+                                let container = new t.Group();
+                                container.add(line);
+                                container.add(points);
+                                container.position.set(
                                         -cubeControls.width / 2 + subW * (c + 0.5),
                                         -cubeControls.height / 2 + subH * (r + 0.5),
                                         -baseDepth / 2 + subD * (d + 0.5)
                                 );
-                                cube.userData.subGroup.add(line);
+                                cube.userData.subGroup.add(container);
 
-                                cube.userData.subMatrix[d][r][c] = line;
+                                cube.userData.subMatrix[d][r][c] = container;
                         }
                 }
         }
@@ -658,8 +676,8 @@ else
                 let read = new Float32Array(colorTexSize.x * colorTexSize.y * 4);
                 renderer.readRenderTargetPixels(gpu.getCurrentRenderTarget(colorVar), 0, 0, colorTexSize.x, colorTexSize.y, read);
                 let idx = 0;
-                cube.userData.subGroup.children.forEach(line => {
-                        line.material.color.setRGB(read[idx], read[idx + 1], read[idx + 2]);
+                cube.userData.subGroup.children.forEach(g => {
+                        g.children.forEach(obj => obj.material.color.setRGB(read[idx], read[idx + 1], read[idx + 2]));
                         colors[(idx/4)*3] = read[idx];
                         colors[(idx/4)*3+1] = read[idx+1];
                         colors[(idx/4)*3+2] = read[idx+2];
@@ -760,8 +778,8 @@ else
                                                 Object.keys(cube.userData.metaData.subColors).length === 0)
                                 ) {
                                         let idx = 0;
-                                        cube.userData.subGroup.children.forEach(line => {
-                                                line.material.color.setRGB(read[idx], read[idx + 1], read[idx + 2]);
+                                        cube.userData.subGroup.children.forEach(g => {
+                                                g.children.forEach(obj => obj.material.color.setRGB(read[idx], read[idx + 1], read[idx + 2]));
                                                 if (cube.userData.colorBuffer && cube.userData.colorBuffer.length > (idx/4)*3 + 2) {
                                                         cube.userData.colorBuffer[(idx/4)*3] = read[idx];
                                                         cube.userData.colorBuffer[(idx/4)*3 + 1] = read[idx + 1];
