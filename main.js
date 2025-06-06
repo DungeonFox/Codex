@@ -507,6 +507,7 @@ else
                                }
                        }
                });
+               cubes.forEach(blendSubCubeColors);
                windowManager.updateWindowsLocalStorage();
        }
 
@@ -542,6 +543,7 @@ else
                                applyColorToSubCube(cube, row, col, layer, colorStr);
                        }
                });
+               cubes.forEach(blendSubCubeColors);
                windowManager.updateWindowsLocalStorage();
        }
 
@@ -581,13 +583,57 @@ else
                                                let g = cube.userData.subGroup.children[i];
                                                g.children.forEach(obj => obj.material.color.setRGB(cval[0], cval[1], cval[2]));
                                                if (cube.userData.colorBuffer && cube.userData.colorBuffer.length > i * 3 + 2) {
-                                                        cube.userData.colorBuffer[i * 3] = cval[0];
-                                                        cube.userData.colorBuffer[i * 3 + 1] = cval[1];
-                                                        cube.userData.colorBuffer[i * 3 + 2] = cval[2];
+                                                       cube.userData.colorBuffer[i * 3] = cval[0];
+                                                       cube.userData.colorBuffer[i * 3 + 1] = cval[1];
+                                                       cube.userData.colorBuffer[i * 3 + 2] = cval[2];
                                                }
                                        }
                                }
                        }
+               });
+               cubes.forEach(blendSubCubeColors);
+      }
+
+       function blendSubCubeColors(cube) {
+               if (!cube.userData || !cube.userData.subInfo) return;
+               let { rows, cols, layers, subW, subH, subD } = cube.userData.subInfo;
+               let baseColors = cube.userData.colorBuffer;
+               if (!baseColors) return;
+               let blended = new Float32Array(baseColors.length);
+               for (let d = 0; d < layers; d++) {
+                       for (let r = 0; r < rows; r++) {
+                               for (let c = 0; c < cols; c++) {
+                                       let idx = d * rows * cols + r * cols + c;
+                                       let sum = 0;
+                                       let rSum = 0, gSum = 0, bSum = 0;
+                                       for (let dd = -1; dd <= 1; dd++) {
+                                               for (let rr = -1; rr <= 1; rr++) {
+                                                       for (let cc = -1; cc <= 1; cc++) {
+                                                               let nd = d + dd;
+                                                               let nr = r + rr;
+                                                               let nc = c + cc;
+                                                               if (nd < 0 || nd >= layers || nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+                                                               let nidx = nd * rows * cols + nr * cols + nc;
+                                                               let dist = Math.sqrt(Math.pow(dd * subW,2) + Math.pow(rr * subH,2) + Math.pow(cc * subD,2));
+                                                               let w = 1 / (dist + 1e-6);
+                                                               if (dd === 0 && rr === 0 && cc === 0) w *= 2;
+                                                               rSum += baseColors[nidx*3] * w;
+                                                               gSum += baseColors[nidx*3+1] * w;
+                                                               bSum += baseColors[nidx*3+2] * w;
+                                                               sum += w;
+                                                       }
+                                               }
+                                       }
+                                       blended[idx*3] = rSum / sum;
+                                       blended[idx*3+1] = gSum / sum;
+                                       blended[idx*3+2] = bSum / sum;
+                               }
+                       }
+               }
+               let id = 0;
+               cube.userData.subGroup.children.forEach(g => {
+                       g.children.forEach(obj => obj.material.color.setRGB(blended[id*3], blended[id*3+1], blended[id*3+2]));
+                       id++;
                });
        }
 
@@ -626,6 +672,7 @@ else
                 cube.userData.colorBuffer = new Float32Array(count * 3);
         }
 
+        cube.userData.subInfo = { rows, cols, layers, subW, subH, subD };
         let colors = cube.userData.colorBuffer;
 
         for (let d = 0; d < layers; d++) {
@@ -700,6 +747,7 @@ else
         }
 
         cube.add(cube.userData.subGroup);
+        blendSubCubeColors(cube);
         }
 
         function updateSubCubeLayout ()
@@ -803,6 +851,7 @@ else
                                         });
                                 }
                         });
+                        cubes.forEach(blendSubCubeColors);
                 }
 
 		renderer.render(scene, camera);
