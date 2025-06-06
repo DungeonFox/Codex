@@ -262,9 +262,10 @@ else
         function setupGUI ()
         {
                 gui = new dat.GUI();
-                gui.add(cubeControls, 'width', 50, 300, 10).onChange(updateCubeSize);
-                gui.add(cubeControls, 'height', 50, 300, 10).onChange(updateCubeSize);
-                gui.add(cubeControls, 'depth', 50, 300, 10).onChange(updateCubeSize);
+                // Use one unit steps so sizes can be adjusted precisely
+                gui.add(cubeControls, 'width', 50, 300, 1).onChange(updateCubeSize);
+                gui.add(cubeControls, 'height', 50, 300, 1).onChange(updateCubeSize);
+                gui.add(cubeControls, 'depth', 50, 300, 1).onChange(updateCubeSize);
                 gui.add(cubeControls, 'rows', 1, 10, 1).onChange(() => { updateSubCubeLayout(); refreshSelectionControllers(); });
                 gui.add(cubeControls, 'columns', 1, 10, 1).onChange(() => { updateSubCubeLayout(); refreshSelectionControllers(); });
                 gui.add(cubeControls, 'subDepth', 1, 10, 1).onChange(() => { updateCubeSize(); updateSubCubeLayout(); refreshSelectionControllers(); });
