@@ -2,6 +2,7 @@ import WindowManager from './WindowManager.js'
 import GPUComputationRenderer from './GPUComputationRenderer.js'
 import { createColorShader } from './computeShader.js'
 import { createSubCubeMaterial, createCubeMaterial } from './materials.js'
+import { openDB, saveCube, loadCubes, saveSubCube, loadSubCubes } from './db.js'
 
 
 
@@ -16,6 +17,7 @@ let gpu;
 let colorVar;
 let colorTexSize = {x: 1, y: 1};
 let colorTexture;
+let db;
 let cubeControls = {
     width: 150,
     height: 150,
@@ -184,13 +186,18 @@ else
 		}
 	};
 
-        function init ()
+        async function init ()
         {
                 initialized = true;
 
                 // add a short timeout because window.offsetX reports wrong values before a short period
-                setTimeout(() => {
+                setTimeout(async () => {
                         setupWindowManager();
+                        try {
+                                db = await openDB();
+                        } catch(err) {
+                                console.error('IndexedDB init failed', err);
+                        }
                         loadGlobalSettings();
                         updateAnimButton();
                         windowManager.getThisWindowData().metaData.animate = cubeControls.animate;
@@ -202,6 +209,7 @@ else
                         setupGUI();
                         setupControls();
                         windowsUpdated();
+                        if (db) await loadIndexedData();
                         resize();
                         updateWindowShape(false);
                         render();
@@ -394,10 +402,65 @@ else
                 // first update happens after loading stored settings
 	}
 
-	function windowsUpdated ()
-	{
-		updateNumberOfCubes();
-	}
+        function windowsUpdated ()
+        {
+                updateNumberOfCubes();
+        }
+
+        async function loadIndexedData() {
+                if (!db) return;
+                try {
+                        let cubesData = await loadCubes(db, thisWindowId);
+                        cubesData.forEach(cd => {
+                                cubes.forEach(c => {
+                                        if (c.userData.winId === cd.id) {
+                                                if (cd.color) c.material.color.set(cd.color);
+                                                if (cd.position) c.position.set(cd.position.x, cd.position.y, cd.position.z);
+                                                if (cd.rotation) c.rotation.set(cd.rotation.x, cd.rotation.y, cd.rotation.z);
+                                        }
+                                });
+                        });
+                        for (let cube of cubes) {
+                                let subs = await loadSubCubes(db, thisWindowId, cube.userData.winId);
+                                subs.forEach(s => {
+                                        if (s.color) applyColorToSubCube(cube, s.row, s.col, s.layer, s.color);
+                                        if (s.weight !== undefined) applyWeightToSubCube(cube, s.row, s.col, s.layer, s.weight);
+                                });
+                        }
+                        blendAllSubCubeColors();
+                } catch(err) {
+                        console.error('DB load error', err);
+                }
+        }
+
+        function persistCube(cube) {
+                if (!db) return;
+                let data = {
+                        position: { x: cube.position.x, y: cube.position.y, z: cube.position.z },
+                        rotation: { x: cube.rotation.x, y: cube.rotation.y, z: cube.rotation.z },
+                        color: `#${cube.material.color.getHexString()}`,
+                        weight: cube.userData.weight || 1
+                };
+                saveCube(db, thisWindowId, cube.userData.winId, data).catch(err => console.error('DB save cube', err));
+        }
+
+        function persistSubCube(cube, row, col, layer) {
+                if (!db) return;
+                let rows = cube.userData.subInfo.rows;
+                let cols = cube.userData.subInfo.cols;
+                let layers = cube.userData.subInfo.layers;
+                let d = coordToIndex(layer, layers);
+                let r = coordToIndex(row, rows);
+                let c = coordToIndex(col, cols);
+                let idx = d * rows * cols + r * cols + c;
+                let color = {
+                        r: cube.userData.colorBuffer[idx*3],
+                        g: cube.userData.colorBuffer[idx*3+1],
+                        b: cube.userData.colorBuffer[idx*3+2]
+                };
+                let weight = cube.userData.weightBuffer[idx];
+                saveSubCube(db, thisWindowId, cube.userData.winId, r, c, d, { color: `#${new t.Color(color.r, color.g, color.b).getHexString()}`, weight }).catch(err => console.error('DB save sub', err));
+        }
 
         function updateNumberOfCubes ()
         {
@@ -445,6 +508,7 @@ else
                         createSubCubeGrid(cube, baseDepth);
 
                         world.add(cube);
+                        persistCube(cube);
                         cubes.push(cube);
                 }
         }
@@ -459,6 +523,7 @@ else
                         cube.material.color.set(cubeControls.color);
                         cube.material.needsUpdate = true;
                         createSubCubeGrid(cube, baseDepth);
+                        persistCube(cube);
                 });
                 updateSubCubeColor();
                 updateSelectedSubCubeColor();
@@ -466,8 +531,8 @@ else
                 windowManager.updateWindowsLocalStorage();
         }
 
-       function updateCubeColor ()
-       {
+        function updateCubeColor ()
+        {
                 let wins = windowManager.getWindows();
                 cubes.forEach((cube, idx) => {
                         if (cube.userData.winId === thisWindowId) {
@@ -481,7 +546,8 @@ else
                         }
                 });
                 windowManager.updateWindowsLocalStorage();
-       }
+                cubes.forEach(c => persistCube(c));
+        }
 
        function updateSubCubeColor ()
        {
@@ -537,6 +603,7 @@ else
                 });
                 saveGlobalSettings();
                 windowManager.updateWindowsLocalStorage();
+                cubes.forEach(c => persistCube(c));
        }
 
        function updateSelectedSubCubeColor () {
@@ -613,6 +680,7 @@ else
                        if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
                        let key = `${r}_${c}_${d}`;
                        cube.userData.metaData.subColors[key] = colorStr;
+                       persistSubCube(cube, r, c, d);
                }
       }
 
@@ -633,6 +701,7 @@ else
                        if (!cube.userData.metaData.subWeights) cube.userData.metaData.subWeights = {};
                        let key = `${r}_${c}_${d}`;
                        cube.userData.metaData.subWeights[key] = weightVal;
+                       persistSubCube(cube, r, c, d);
                }
        }
 
@@ -950,6 +1019,7 @@ else
                         cube.rotation.x = rotX + (animate ? _t * .5 : 0);
                         cube.rotation.y = rotY + (animate ? _t * .3 : 0);
                         cube.rotation.z = rotZ;
+                        persistCube(cube);
                 }
 
                 if (gpu && colorVar) {
