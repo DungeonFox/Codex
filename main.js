@@ -516,31 +516,43 @@ else
                 windowManager.updateWindowsLocalStorage();
        }
 
-       function updateSelectedSubCubeColor ()
-       {
-                cubes.forEach((cube) => {
-                        if (cube.userData.winId === thisWindowId && cube.userData.subGroup) {
-                                let m = cube.userData.subMatrix;
-                                let d = coordToIndex(cubeControls.selLayer, cubeControls.subDepth);
-                                let r = coordToIndex(cubeControls.selRow, cubeControls.rows);
-                                let c = coordToIndex(cubeControls.selCol, cubeControls.columns);
-                                if (m && m[d] && m[d][r] && m[d][r][c]) {
-                                       let line = m[d][r][c];
-                                       let color = new t.Color(cubeControls.selColor);
-                                       line.material.color.copy(color);
-                                       let idx = cube.userData.subGroup.children.indexOf(line);
-                                       if (idx >= 0 && cube.userData.colorBuffer && cube.userData.colorBuffer.length > idx * 3 + 2) {
-                                                cube.userData.colorBuffer[idx * 3] = color.r;
-                                                cube.userData.colorBuffer[idx * 3 + 1] = color.g;
-                                                cube.userData.colorBuffer[idx * 3 + 2] = color.b;
-                                       }
-                                        if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
-                                        let key = `${cubeControls.selCol}_${cubeControls.selRow}_${cubeControls.selLayer}`;
-                                        cube.userData.metaData.subColors[key] = cubeControls.selColor;
-                                }
-                        }
-                });
+       function updateSelectedSubCubeColor () {
+               setSubCubeColor(
+                       cubeControls.selCol,
+                       cubeControls.selRow,
+                       cubeControls.selLayer,
+                       cubeControls.selColor
+               );
+       }
+
+       function setSubCubeColor(col, row, layer, colorStr) {
+               cubes.forEach((cube) => {
+                       if (cube.userData.winId === thisWindowId && cube.userData.subGroup) {
+                               applyColorToSubCube(cube, col, row, layer, colorStr);
+                       }
+               });
                windowManager.updateWindowsLocalStorage();
+       }
+
+       function applyColorToSubCube(cube, col, row, layer, colorStr) {
+               let m = cube.userData.subMatrix;
+               let d = coordToIndex(layer, cubeControls.subDepth);
+               let r = coordToIndex(row, cubeControls.rows);
+               let c = coordToIndex(col, cubeControls.columns);
+               if (m && m[d] && m[d][r] && m[d][r][c]) {
+                       let line = m[d][r][c];
+                       let color = new t.Color(colorStr);
+                       line.material.color.copy(color);
+                       let idx = cube.userData.subGroup.children.indexOf(line);
+                       if (idx >= 0 && cube.userData.colorBuffer && cube.userData.colorBuffer.length > idx * 3 + 2) {
+                               cube.userData.colorBuffer[idx * 3] = color.r;
+                               cube.userData.colorBuffer[idx * 3 + 1] = color.g;
+                               cube.userData.colorBuffer[idx * 3 + 2] = color.b;
+                       }
+                       if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
+                       let key = `${col}_${row}_${layer}`;
+                       cube.userData.metaData.subColors[key] = colorStr;
+               }
        }
 
        function applyColorData(arr) {
@@ -766,13 +778,16 @@ else
 
 
 	// resize the renderer to fit the window size
-	function resize ()
-	{
-		let width = window.innerWidth;
-		let height = window.innerHeight
-		
-		camera = new t.OrthographicCamera(0, width, 0, height, -10000, 10000);
-		camera.updateProjectionMatrix();
-		renderer.setSize( width, height );
-	}
+       function resize ()
+       {
+               let width = window.innerWidth;
+               let height = window.innerHeight
+
+               camera = new t.OrthographicCamera(0, width, 0, height, -10000, 10000);
+               camera.updateProjectionMatrix();
+               renderer.setSize( width, height );
+       }
 }
+
+// expose helper for external scripts or console
+window.setSubCubeColor = setSubCubeColor;
