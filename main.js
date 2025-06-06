@@ -47,12 +47,15 @@ let globalSettings = {
     rotZ: cubeControls.rotZ
 };
 
-function indexToCoord (index, count) {
-    return index - Math.floor(count / 2);
+function indexToCoord(index, count) {
+    let half = (count - 1) / 2;
+    return index - half;
 }
 
-function coordToIndex (coord, count) {
-    return coord + Math.floor(count / 2);
+function coordToIndex(coord, count) {
+    let half = (count - 1) / 2;
+    let idx = Math.round(coord + half);
+    return Math.min(count - 1, Math.max(0, idx));
 }
 
 function createLineCubeGeometry(w, h, d) {
