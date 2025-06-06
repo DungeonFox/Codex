@@ -408,14 +408,12 @@ else
                                for (let i = 0; i < Math.min(count, arr.length); i++) {
                                        let cval = arr[i];
                                        if (Array.isArray(cval) && cval.length >= 3) {
-                               cube.userData.subMesh.instanceColor.array[i * 19 + 16] = cval[0];
-                               cube.userData.subMesh.instanceColor.array[i * 19 + 17] = cval[1];
-                               cube.userData.subMesh.instanceColor.array[i * 19 + 18] = cval[2];
-                                                if (cube.userData.colorBuffer && cube.userData.colorBuffer.length > i * 3 + 2) {
+                                               cube.userData.subMesh.setColorAt(i, new t.Color(cval[0], cval[1], cval[2]));
+                                               if (cube.userData.colorBuffer && cube.userData.colorBuffer.length > i * 3 + 2) {
                                                         cube.userData.colorBuffer[i * 3] = cval[0];
                                                         cube.userData.colorBuffer[i * 3 + 1] = cval[1];
                                                         cube.userData.colorBuffer[i * 3 + 2] = cval[2];
-                                                }
+                                               }
                                        }
                                }
                                cube.userData.subMesh.instanceColor.needsUpdate = true;
@@ -452,21 +450,17 @@ else
                 let material = createSubCubeMaterial();
                 let mesh = new t.InstancedMesh(geometry, material, count);
 
-                // replace default attributes with an interleaved buffer
-                let data = new Float32Array(count * 19);
-                let inter = new t.InstancedInterleavedBuffer(data, 19);
-                let mAttr = new t.InterleavedBufferAttribute(inter, 16, 0);
-                let cAttr = new t.InterleavedBufferAttribute(inter, 3, 16);
-                mesh.geometry.setAttribute('instanceMatrix', mAttr);
-                mesh.geometry.setAttribute('instanceColor', cAttr);
-                mesh.instanceMatrix = mAttr;
-                mesh.instanceColor = cAttr;
-                inter.setUsage(t.DynamicDrawUsage);
+                mesh.instanceMatrix.setUsage(t.DynamicDrawUsage);
 
                 let existingBuffer = cube.userData.colorBuffer && cube.userData.colorBuffer.length === count * 3;
                 if (!existingBuffer) {
                         cube.userData.colorBuffer = new Float32Array(count * 3);
                 }
+
+                let colorAttr = new t.InstancedBufferAttribute(cube.userData.colorBuffer, 3);
+                colorAttr.setUsage(t.DynamicDrawUsage);
+                mesh.geometry.setAttribute('instanceColor', colorAttr);
+                mesh.instanceColor = colorAttr;
 
                 let colors = cube.userData.colorBuffer;
                 let index = 0;
@@ -513,13 +507,10 @@ else
                         }
                 }
 
-                // copy color data into interleaved attribute
                 for (let i = 0; i < count; i++) {
-                        cAttr.array[i * 19 + 16] = colors[i * 3];
-                        cAttr.array[i * 19 + 17] = colors[i * 3 + 1];
-                        cAttr.array[i * 19 + 18] = colors[i * 3 + 2];
+                        mesh.setColorAt(i, new t.Color(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]));
                 }
-                cAttr.needsUpdate = true;
+                mesh.instanceColor.needsUpdate = true;
                 if (gpu && colorVar && (!cube.userData.metaData || !cube.userData.metaData.subColors || Object.keys(cube.userData.metaData.subColors).length === 0)) {
                         colorVar.material.uniforms.time.value = internalTime;
                         gpu.compute();
@@ -628,9 +619,7 @@ else
                                                         cube.userData.colorBuffer[i * 3 + 1] = read[idx + 1];
                                                         cube.userData.colorBuffer[i * 3 + 2] = read[idx + 2];
                                                 }
-                                                cube.userData.subMesh.instanceColor.array[i * 19 + 16] = read[idx];
-                                                cube.userData.subMesh.instanceColor.array[i * 19 + 17] = read[idx + 1];
-                                                cube.userData.subMesh.instanceColor.array[i * 19 + 18] = read[idx + 2];
+                                                cube.userData.subMesh.setColorAt(i, new t.Color(read[idx], read[idx + 1], read[idx + 2]));
                                         }
                                         cube.userData.subMesh.instanceColor.needsUpdate = true;
                                 }
