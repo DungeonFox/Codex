@@ -534,6 +534,9 @@ else
                windowManager.updateWindowsLocalStorage();
        }
 
+       // expose helper for external scripts or console
+       window.setSubCubeColor = setSubCubeColor;
+
        function applyColorToSubCube(cube, col, row, layer, colorStr) {
                let m = cube.userData.subMatrix;
                let d = coordToIndex(layer, cubeControls.subDepth);
@@ -788,6 +791,3 @@ else
                renderer.setSize( width, height );
        }
 }
-
-// expose helper for external scripts or console
-window.setSubCubeColor = setSubCubeColor;
