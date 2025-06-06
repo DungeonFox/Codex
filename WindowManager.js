@@ -1,15 +1,17 @@
-class WindowManager 
+class WindowManager
 {
 	#windows;
 	#count;
 	#id;
 	#winData;
-	#winShapeChangeCallback;
-	#winChangeCallback;
+        #winShapeChangeCallback;
+        #winChangeCallback;
+        #heartbeatInterval;
 	
-	constructor ()
-	{
-		let that = this;
+        constructor ()
+        {
+                let that = this;
+                this.#heartbeatInterval = null;
 
 		// event listener for when localStorage is changed from another window
 		addEventListener("storage", (event) => 
@@ -29,15 +31,17 @@ class WindowManager
 		});
 
 		// event listener for when current window is about to ble closed
-		window.addEventListener('beforeunload', function (e) 
-		{
-			let index = that.getWindowIndexFromId(that.#id);
+                window.addEventListener('beforeunload', function (e)
+                {
+                        let index = that.getWindowIndexFromId(that.#id);
 
-			//remove this window from the list and update local storage
-			that.#windows.splice(index, 1);
-			that.updateWindowsLocalStorage();
-		});
-	}
+                        //remove this window from the list and update local storage
+                        that.#windows.splice(index, 1);
+                        that.updateWindowsLocalStorage();
+                        localStorage.removeItem(`heartbeat_${that.#id}`);
+                        if (that.#heartbeatInterval) clearInterval(that.#heartbeatInterval);
+                });
+        }
 
 	// check if theres any changes to the window list
         #didWindowsChange (pWins, nWins)
@@ -62,20 +66,22 @@ class WindowManager
         }
 
 	// initiate current window (add metadata for custom data to store with each window instance)
-	init (metaData)
-	{
-		this.#windows = JSON.parse(localStorage.getItem("windows")) || [];
-		this.#count= localStorage.getItem("count") || 0;
-		this.#count++;
+        init (metaData)
+        {
+                this.#windows = JSON.parse(localStorage.getItem("windows")) || [];
+                this.#cleanupStaleWindows();
+                this.#count= localStorage.getItem("count") || 0;
+                this.#count++;
 
 		this.#id = this.#count;
 		let shape = this.getWinShape();
 		this.#winData = {id: this.#id, shape: shape, metaData: metaData};
 		this.#windows.push(this.#winData);
 
-		localStorage.setItem("count", this.#count);
-		this.updateWindowsLocalStorage();
-	}
+                localStorage.setItem("count", this.#count);
+                this.updateWindowsLocalStorage();
+                this.#startHeartbeat();
+        }
 
 	getWinShape ()
 	{
@@ -100,10 +106,10 @@ class WindowManager
 		localStorage.setItem("windows", JSON.stringify(this.#windows));
 	}
 
-	update ()
-	{
-		//console.log(step);
-		let winShape = this.getWinShape();
+        update ()
+        {
+                //console.log(step);
+                let winShape = this.getWinShape();
 
 		//console.log(winShape.x, winShape.y);
 
@@ -119,10 +125,13 @@ class WindowManager
 			this.#windows[index].shape = winShape;
 
 			//console.log(windows);
-			if (this.#winShapeChangeCallback) this.#winShapeChangeCallback();
-			this.updateWindowsLocalStorage();
-		}
-	}
+                        if (this.#winShapeChangeCallback) this.#winShapeChangeCallback();
+                        this.updateWindowsLocalStorage();
+                }
+                if (this.#id) {
+                        localStorage.setItem(`heartbeat_${this.#id}`, Date.now());
+                }
+        }
 
 	setWinShapeChangeCallback (callback)
 	{
@@ -144,10 +153,35 @@ class WindowManager
 		return this.#winData;
 	}
 
-	getThisWindowID ()
-	{
-		return this.#id;
-	}
+        getThisWindowID ()
+        {
+                return this.#id;
+        }
+
+        #cleanupStaleWindows ()
+        {
+                let now = Date.now();
+                let changed = false;
+                this.#windows = this.#windows.filter(w => {
+                        let hb = parseInt(localStorage.getItem(`heartbeat_${w.id}`));
+                        if (!hb || now - hb > 5000) {
+                                changed = true;
+                                localStorage.removeItem(`heartbeat_${w.id}`);
+                                return false;
+                        }
+                        return true;
+                });
+                if (changed) this.updateWindowsLocalStorage();
+        }
+
+        #startHeartbeat ()
+        {
+                if (this.#heartbeatInterval) clearInterval(this.#heartbeatInterval);
+                let id = this.#id;
+                this.#heartbeatInterval = setInterval(() => {
+                        localStorage.setItem(`heartbeat_${id}` , Date.now());
+                }, 1000);
+        }
 }
 
 export default WindowManager;
