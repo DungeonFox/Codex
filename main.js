@@ -37,7 +37,8 @@ let cubeControls = {
     selRow: 0,
     selCol: 0,
     selLayer: 0,
-    selColor: '#ff0000'
+    selColor: '#ff0000',
+    selWeight: 1
 };
 
 let globalSettings = {
@@ -274,6 +275,7 @@ else
                 selColCtrl = gui.add(cubeControls, 'selCol', indexToCoord(0, cubeControls.columns), indexToCoord(cubeControls.columns - 1, cubeControls.columns), 1).onChange(updateSelectedSubCubeColor);
                 selLayerCtrl = gui.add(cubeControls, 'selLayer', indexToCoord(0, cubeControls.subDepth), indexToCoord(cubeControls.subDepth - 1, cubeControls.subDepth), 1).onChange(updateSelectedSubCubeColor);
                 gui.addColor(cubeControls, 'selColor').onChange(updateSelectedSubCubeColor);
+                gui.add(cubeControls, 'selWeight', 0, 10, 0.1).onChange(updateSelectedSubCubeWeight);
         }
 
         function setupControls() {
@@ -369,10 +371,12 @@ else
                 windowManager.setWinShapeChangeCallback(updateWindowShape);
                 windowManager.setWinChangeCallback(windowsUpdated);
 
-                // add custom metadata so each window can store its own colour and sub-cube colours
+                // add custom metadata so each window can store its own colour,
+                // sub-cube colours and weights
                 let metaData = {
                         color: cubeControls.color,
                         subColors: {},
+                        subWeights: {},
                         animate: cubeControls.animate,
                         rotX: cubeControls.rotX,
                         rotY: cubeControls.rotY,
@@ -429,6 +433,7 @@ else
                         cube.userData.metaData = win.metaData || {
                                 color: color,
                                 subColors: {},
+                                subWeights: {},
                                 animate: cubeControls.animate,
                                 rotX: cubeControls.rotX,
                                 rotY: cubeControls.rotY,
@@ -457,6 +462,7 @@ else
                 });
                 updateSubCubeColor();
                 updateSelectedSubCubeColor();
+                blendAllSubCubeColors();
                 windowManager.updateWindowsLocalStorage();
         }
 
@@ -507,7 +513,7 @@ else
                                }
                        }
                });
-               cubes.forEach(blendSubCubeColors);
+               blendAllSubCubeColors();
                windowManager.updateWindowsLocalStorage();
        }
 
@@ -535,6 +541,15 @@ else
                );
        }
 
+       function updateSelectedSubCubeWeight() {
+               setSubCubeWeight(
+                       cubeControls.selRow,
+                       cubeControls.selCol,
+                       cubeControls.selLayer,
+                       cubeControls.selWeight
+               );
+       }
+
        // Set the colour of a particular sub-cube addressed by row, column and layer.
        // Coordinates are centered so that 0 is the middle row/column/layer.
        function setSubCubeColor(row, col, layer, colorStr) {
@@ -543,12 +558,23 @@ else
                                applyColorToSubCube(cube, row, col, layer, colorStr);
                        }
                });
-               cubes.forEach(blendSubCubeColors);
+               blendAllSubCubeColors();
+               windowManager.updateWindowsLocalStorage();
+       }
+
+       function setSubCubeWeight(row, col, layer, weightVal) {
+               cubes.forEach((cube) => {
+                       if (cube.userData.winId === thisWindowId && cube.userData.subGroup) {
+                               applyWeightToSubCube(cube, row, col, layer, weightVal);
+                       }
+               });
+               blendAllSubCubeColors();
                windowManager.updateWindowsLocalStorage();
        }
 
        // expose helper for external scripts or console
        window.setSubCubeColor = setSubCubeColor;
+       window.setSubCubeWeight = setSubCubeWeight;
 
        function applyColorToSubCube(cube, row, col, layer, colorStr) {
                let m = cube.userData.subMatrix;
@@ -570,8 +596,28 @@ else
                        }
                        if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
                        let key = `${r}_${c}_${d}`;
-                       cube.userData.metaData.subColors[key] = colorStr;
+               cube.userData.metaData.subColors[key] = colorStr;
+       }
+
+       function applyWeightToSubCube(cube, row, col, layer, weightVal) {
+               let m = cube.userData.subMatrix;
+               if (!m) return;
+               let layers = m.length;
+               let rows = m[0].length;
+               let cols = m[0][0].length;
+               let d = coordToIndex(layer, layers);
+               let r = coordToIndex(row, rows);
+               let c = coordToIndex(col, cols);
+               if (m[d] && m[d][r] && m[d][r][c]) {
+                       let bufferIndex = d * rows * cols + r * cols + c;
+                       if (cube.userData.weightBuffer && cube.userData.weightBuffer.length > bufferIndex) {
+                               cube.userData.weightBuffer[bufferIndex] = weightVal;
+                       }
+                       if (!cube.userData.metaData.subWeights) cube.userData.metaData.subWeights = {};
+                       let key = `${r}_${c}_${d}`;
+                       cube.userData.metaData.subWeights[key] = weightVal;
                }
+       }
        }
 
        function applyColorData(arr) {
@@ -591,50 +637,51 @@ else
                                }
                        }
                });
-               cubes.forEach(blendSubCubeColors);
+               blendAllSubCubeColors();
       }
 
-       function blendSubCubeColors(cube) {
-               if (!cube.userData || !cube.userData.subInfo) return;
-               let { rows, cols, layers, subW, subH, subD } = cube.userData.subInfo;
-               let baseColors = cube.userData.colorBuffer;
-               if (!baseColors) return;
-               let blended = new Float32Array(baseColors.length);
-               for (let d = 0; d < layers; d++) {
-                       for (let r = 0; r < rows; r++) {
-                               for (let c = 0; c < cols; c++) {
-                                       let idx = d * rows * cols + r * cols + c;
-                                       let sum = 0;
-                                       let rSum = 0, gSum = 0, bSum = 0;
-                                       for (let dd = -1; dd <= 1; dd++) {
-                                               for (let rr = -1; rr <= 1; rr++) {
-                                                       for (let cc = -1; cc <= 1; cc++) {
-                                                               let nd = d + dd;
-                                                               let nr = r + rr;
-                                                               let nc = c + cc;
-                                                               if (nd < 0 || nd >= layers || nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-                                                               let nidx = nd * rows * cols + nr * cols + nc;
-                                                               let dist = Math.sqrt(Math.pow(dd * subW,2) + Math.pow(rr * subH,2) + Math.pow(cc * subD,2));
-                                                               let w = 1 / (dist + 1e-6);
-                                                               if (dd === 0 && rr === 0 && cc === 0) w *= 2;
-                                                               rSum += baseColors[nidx*3] * w;
-                                                               gSum += baseColors[nidx*3+1] * w;
-                                                               bSum += baseColors[nidx*3+2] * w;
-                                                               sum += w;
-                                                       }
-                                               }
+       function blendAllSubCubeColors() {
+               let infos = [];
+               cubes.forEach(cube => {
+                       if (!cube.userData || !cube.userData.subInfo) return;
+                       let { rows, cols, layers } = cube.userData.subInfo;
+                       let colors = cube.userData.colorBuffer;
+                       let weights = cube.userData.weightBuffer || [];
+                       if (!colors) return;
+                       for (let d = 0; d < layers; d++) {
+                               for (let r = 0; r < rows; r++) {
+                                       for (let c = 0; c < cols; c++) {
+                                               let idx = d * rows * cols + r * cols + c;
+                                               let g = cube.userData.subMatrix[d][r][c];
+                                               let pos = g.getWorldPosition(new t.Vector3());
+                                               infos.push({ cube, idx, pos, color:[colors[idx*3], colors[idx*3+1], colors[idx*3+2]], weight: weights[idx] || 1, group:g });
                                        }
-                                       blended[idx*3] = rSum / sum;
-                                       blended[idx*3+1] = gSum / sum;
-                                       blended[idx*3+2] = bSum / sum;
                                }
                        }
-               }
-               let id = 0;
-               cube.userData.subGroup.children.forEach(g => {
-                       g.children.forEach(obj => obj.material.color.setRGB(blended[id*3], blended[id*3+1], blended[id*3+2]));
-                       id++;
                });
+               let newCols = new Array(infos.length);
+               for (let i = 0; i < infos.length; i++) {
+                       let rSum=0,gSum=0,bSum=0,sum=0;
+                       for (let j = 0; j < infos.length; j++) {
+                               let dx = infos[j].pos.x - infos[i].pos.x;
+                               let dy = infos[j].pos.y - infos[i].pos.y;
+                               let dz = infos[j].pos.z - infos[i].pos.z;
+                               let dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                               let w = infos[j].weight / (dist + 1e-6);
+                               rSum += infos[j].color[0] * w;
+                               gSum += infos[j].color[1] * w;
+                               bSum += infos[j].color[2] * w;
+                               sum += w;
+                       }
+                       newCols[i] = [rSum/sum, gSum/sum, bSum/sum];
+               }
+               for (let i = 0; i < infos.length; i++) {
+                       let col = newCols[i];
+                       infos[i].group.children.forEach(obj => obj.material.color.setRGB(col[0], col[1], col[2]));
+                       infos[i].cube.userData.colorBuffer[infos[i].idx*3] = col[0];
+                       infos[i].cube.userData.colorBuffer[infos[i].idx*3+1] = col[1];
+                       infos[i].cube.userData.colorBuffer[infos[i].idx*3+2] = col[2];
+               }
        }
 
         function createSubCubeGrid (cube, baseDepth = cubeControls.depth)
@@ -672,6 +719,12 @@ else
                 cube.userData.colorBuffer = new Float32Array(count * 3);
         }
 
+        let existingWeightBuffer = cube.userData.weightBuffer && cube.userData.weightBuffer.length === count;
+        if (!existingWeightBuffer) {
+                cube.userData.weightBuffer = new Float32Array(count);
+                for (let i = 0; i < count; i++) cube.userData.weightBuffer[i] = 1;
+        }
+
         cube.userData.subInfo = { rows, cols, layers, subW, subH, subD };
         let colors = cube.userData.colorBuffer;
 
@@ -682,6 +735,8 @@ else
                         for (let c = 0; c < cols; c++) {
                                 let idx = d * rows * cols + r * cols + c;
                                 let colorSet = false;
+                                let weightKey = `${r}_${c}_${d}`;
+                                let weightVal = 1;
                                 if (cube.userData.metaData && cube.userData.metaData.subColors) {
                                         let key = `${r}_${c}_${d}`;
                                         if (cube.userData.metaData.subColors[key]) {
@@ -691,6 +746,13 @@ else
                                                 colors[idx * 3 + 2] = cval.b;
                                                 colorSet = true;
                                         }
+                                }
+                                if (cube.userData.metaData && cube.userData.metaData.subWeights && cube.userData.metaData.subWeights[weightKey] !== undefined) {
+                                        weightVal = cube.userData.metaData.subWeights[weightKey];
+                                } else if (!existingWeightBuffer) {
+                                        weightVal = 1;
+                                } else {
+                                        weightVal = cube.userData.weightBuffer[idx];
                                 }
                                 if (!colorSet && !existingBuffer) {
                                         let colObj = new t.Color(cubeControls.subColor);
@@ -724,12 +786,13 @@ else
                                         -cubeControls.height / 2 + subH * (r + 0.5),
                                         -baseDepth / 2 + subD * (d + 0.5)
                                 );
-                                cube.userData.subGroup.add(container);
+                               cube.userData.subGroup.add(container);
 
-                                cube.userData.subMatrix[d][r][c] = container;
-                        }
-                }
-        }
+                               cube.userData.subMatrix[d][r][c] = container;
+                               cube.userData.weightBuffer[idx] = weightVal;
+                       }
+               }
+       }
 
         if (gpu && colorVar && (!cube.userData.metaData || !cube.userData.metaData.subColors || Object.keys(cube.userData.metaData.subColors).length === 0)) {
                 colorVar.material.uniforms.time.value = internalTime;
@@ -747,7 +810,7 @@ else
         }
 
         cube.add(cube.userData.subGroup);
-        blendSubCubeColors(cube);
+        blendAllSubCubeColors();
         }
 
         function updateSubCubeLayout ()
@@ -851,7 +914,7 @@ else
                                         });
                                 }
                         });
-                        cubes.forEach(blendSubCubeColors);
+                        blendAllSubCubeColors();
                 }
 
 		renderer.render(scene, camera);
