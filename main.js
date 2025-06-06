@@ -48,14 +48,18 @@ let globalSettings = {
 };
 
 function indexToCoord(index, count) {
-    let half = (count - 1) / 2;
-    return index - half;
+    // Treat coordinates as simple zero-based indices so GUI values
+    // map directly to array positions without an offset.
+    return index;
 }
 
 function coordToIndex(coord, count) {
-    let half = (count - 1) / 2;
-    let idx = Math.round(coord + half);
-    return Math.min(count - 1, Math.max(0, idx));
+    // Clamp the coordinate to a valid index range and round it to
+    // the nearest integer to avoid fractional indices.
+    let idx = Math.round(coord);
+    if (idx < 0) idx = 0;
+    if (idx > count - 1) idx = count - 1;
+    return idx;
 }
 
 function createLineCubeGeometry(w, h, d) {
