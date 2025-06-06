@@ -27,6 +27,9 @@ The main application logic is contained within `main.js` and `WindowManager.js`.
 - `WindowManager.js` handles the lifecycle of multiple browser windows, including creation, synchronization, and removal. It uses localStorage to maintain state across windows.
 - `main.js` initializes the 3D scene using Three.js, manages the window's resize events, and updates the scene based on window interactions.
 
+## Cube State Helpers
+Use `getCubeSummary()` in the browser console to view an ordered list of sub-cubes starting from the center. The function returns the cube's dimensions, total number of sub-cubes, and the first five entries in this order.
+
 ## Contributing
 Contributions to enhance or expand the project are welcome. Feel free to fork the repository, make changes, and submit pull requests.
 

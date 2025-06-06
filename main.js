@@ -652,6 +652,70 @@ else
        window.setSubCubeColor = setSubCubeColor;
        window.setSubCubeWeight = setSubCubeWeight;
 
+       function orderSubCubes(cube) {
+               if (!cube.userData.subInfo || !cube.userData.subMatrix) return [];
+               let { rows, cols, layers } = cube.userData.subInfo;
+               let result = [];
+               let center = { row: Math.floor(rows / 2), col: Math.floor(cols / 2), layer: Math.floor(layers / 2) };
+
+               function pushEntry(r, c, d) {
+                       if (!cube.userData.subMatrix[d] || !cube.userData.subMatrix[d][r] || !cube.userData.subMatrix[d][r][c]) return;
+                       let idx = d * rows * cols + r * cols + c;
+                       let color = new t.Color(
+                               cube.userData.colorBuffer[idx * 3],
+                               cube.userData.colorBuffer[idx * 3 + 1],
+                               cube.userData.colorBuffer[idx * 3 + 2]
+                       );
+                       let weight = cube.userData.weightBuffer ? cube.userData.weightBuffer[idx] : 1;
+                       result.push({ row: r, col: c, layer: d, color: `#${color.getHexString()}`, weight });
+               }
+
+               pushEntry(center.row, center.col, center.layer);
+
+               let corners = [
+                       [0, 0, 0],
+                       [0, 0, layers - 1],
+                       [0, cols - 1, 0],
+                       [0, cols - 1, layers - 1],
+                       [rows - 1, 0, 0],
+                       [rows - 1, 0, layers - 1],
+                       [rows - 1, cols - 1, 0],
+                       [rows - 1, cols - 1, layers - 1]
+               ];
+               corners.forEach(co => {
+                       if (co[0] === center.row && co[1] === center.col && co[2] === center.layer) return;
+                       pushEntry(co[0], co[1], co[2]);
+               });
+
+               for (let d = 0; d < layers; d++) {
+                       for (let r = 0; r < rows; r++) {
+                               for (let c = 0; c < cols; c++) {
+                                       if (d === center.layer && r === center.row && c === center.col) continue;
+                                       if (corners.some(co => co[0] === r && co[1] === c && co[2] === d)) continue;
+                                       pushEntry(r, c, d);
+                               }
+                       }
+               }
+               return result;
+       }
+
+       function getCubeSummary(count = 5, winId = thisWindowId) {
+               let cube = cubes.find(c => c.userData.winId === winId);
+               if (!cube || !cube.userData.subInfo) return null;
+               let info = {
+                       dimensions: {
+                               width: cube.userData.subInfo.cols * cube.userData.subInfo.subW,
+                               height: cube.userData.subInfo.rows * cube.userData.subInfo.subH,
+                               depth: cube.userData.subInfo.layers * cube.userData.subInfo.subD
+                       },
+                       subCubeCount: cube.userData.subInfo.rows * cube.userData.subInfo.cols * cube.userData.subInfo.layers,
+                       entries: orderSubCubes(cube).slice(0, count)
+               };
+               return info;
+       }
+
+       window.getCubeSummary = getCubeSummary;
+
        function applyColorToSubCube(cube, row, col, layer, colorStr) {
                let m = cube.userData.subMatrix;
                let layers = m.length;
