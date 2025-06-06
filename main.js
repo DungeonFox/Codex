@@ -488,11 +488,11 @@ else
                                        for (let r = 0; r < rows; r++) {
                                                for (let c = 0; c < cols; c++) {
                                                        let coord = {
-                                                               x: indexToCoord(c, cols),
-                                                               y: indexToCoord(r, rows),
-                                                               z: indexToCoord(d, layers)
+                                                               row: indexToCoord(r, rows),
+                                                               col: indexToCoord(c, cols),
+                                                               layer: indexToCoord(d, layers)
                                                        };
-                                                       let key = `${coord.x}_${coord.y}_${coord.z}`;
+                                                       let key = `${coord.row}_${coord.col}_${coord.layer}`;
                                                        cube.userData.metaData.subColors[key] = cubeControls.subColor;
                                                }
                                        }
@@ -517,18 +517,21 @@ else
        }
 
        function updateSelectedSubCubeColor () {
+               // color the currently selected sub-cube given row, column and layer
                setSubCubeColor(
-                       cubeControls.selCol,
                        cubeControls.selRow,
+                       cubeControls.selCol,
                        cubeControls.selLayer,
                        cubeControls.selColor
                );
        }
 
-       function setSubCubeColor(col, row, layer, colorStr) {
+       // Set the colour of a particular sub-cube addressed by row, column and layer.
+       // Coordinates are centered so that 0 is the middle row/column/layer.
+       function setSubCubeColor(row, col, layer, colorStr) {
                cubes.forEach((cube) => {
                        if (cube.userData.winId === thisWindowId && cube.userData.subGroup) {
-                               applyColorToSubCube(cube, col, row, layer, colorStr);
+                               applyColorToSubCube(cube, row, col, layer, colorStr);
                        }
                });
                windowManager.updateWindowsLocalStorage();
@@ -537,11 +540,14 @@ else
        // expose helper for external scripts or console
        window.setSubCubeColor = setSubCubeColor;
 
-       function applyColorToSubCube(cube, col, row, layer, colorStr) {
+       function applyColorToSubCube(cube, row, col, layer, colorStr) {
                let m = cube.userData.subMatrix;
-               let d = coordToIndex(layer, cubeControls.subDepth);
-               let r = coordToIndex(row, cubeControls.rows);
-               let c = coordToIndex(col, cubeControls.columns);
+               let layers = m.length;
+               let rows = m[0].length;
+               let cols = m[0][0].length;
+               let d = coordToIndex(layer, layers);
+               let r = coordToIndex(row, rows);
+               let c = coordToIndex(col, cols);
                if (m && m[d] && m[d][r] && m[d][r][c]) {
                        let line = m[d][r][c];
                        let color = new t.Color(colorStr);
@@ -553,7 +559,7 @@ else
                                cube.userData.colorBuffer[idx * 3 + 2] = color.b;
                        }
                        if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
-                       let key = `${col}_${row}_${layer}`;
+                       let key = `${row}_${col}_${layer}`;
                        cube.userData.metaData.subColors[key] = colorStr;
                }
        }
@@ -615,13 +621,13 @@ else
                         cube.userData.subMatrix[d][r] = [];
                         for (let c = 0; c < cols; c++) {
                                 let coord = {
-                                        x: indexToCoord(c, cols),
-                                        y: indexToCoord(r, rows),
-                                        z: indexToCoord(d, layers)
+                                        row: indexToCoord(r, rows),
+                                        col: indexToCoord(c, cols),
+                                        layer: indexToCoord(d, layers)
                                 };
                                 let colorSet = false;
                                 if (cube.userData.metaData && cube.userData.metaData.subColors) {
-                                        let key = `${coord.x}_${coord.y}_${coord.z}`;
+                                        let key = `${coord.row}_${coord.col}_${coord.layer}`;
                                         if (cube.userData.metaData.subColors[key]) {
                                                 let cval = new t.Color(cube.userData.metaData.subColors[key]);
                                                 colors[index * 3] = cval.r;
