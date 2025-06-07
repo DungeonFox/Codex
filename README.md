@@ -30,6 +30,15 @@ The main application logic is contained within `main.js` and `WindowManager.js`.
 ## Cube State Helpers
 Use `getCubeSummary()` in the browser console to view an ordered list of sub-cubes starting from the center. The function returns the cube's dimensions, total number of sub-cubes, and the first five entries in this order.
 
+## IndexedDB Structure
+Cube, sub-cube and vertex information is persisted using three object stores:
+
+- **cubes** – keyed by the cube ID and storing `{ id, windowUID, data }` where `data` is an `InstancedInterleavedBuffer` containing sub-cube IDs, center position and vertex metadata.
+- **subcubes** – keyed by the sub-cube ID and storing `{ id, windowUID, cubeId, row, col, layer, data }` where `data` holds vertex IDs and blending info.
+- **vertices** – keyed by the vertex ID and storing `{ id, windowUID, cubeId, subCubeId, index, data }` with color, position and weight values.
+
+These stores allow each window to share cube layouts and colors across sessions.
+
 ## Contributing
 Contributions to enhance or expand the project are welcome. Feel free to fork the repository, make changes, and submit pull requests.
 

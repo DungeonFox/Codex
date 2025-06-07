@@ -51,15 +51,15 @@ let globalSettings = {
 };
 
 function indexToCoord(index, count) {
-    // Treat coordinates as simple zero-based indices so GUI values
-    // map directly to array positions without an offset.
-    return index;
+    // Center coordinates so [0,0,0] maps to the cube center
+    let half = (count - 1) / 2;
+    return index - half;
 }
 
 function coordToIndex(coord, count) {
-    // Clamp the coordinate to a valid index range and round it to
-    // the nearest integer to avoid fractional indices.
-    let idx = Math.round(coord);
+    // Round to nearest index and clamp to range
+    let half = (count - 1) / 2;
+    let idx = Math.round(coord + half);
     if (idx < 0) idx = 0;
     if (idx > count - 1) idx = count - 1;
     return idx;

@@ -1,18 +1,21 @@
 export async function openDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open('CubeDB', 1);
+        const request = indexedDB.open('CubeDB', 2);
         request.onupgradeneeded = (event) => {
             const db = event.target.result;
             if (!db.objectStoreNames.contains('cubes')) {
-                const cubeStore = db.createObjectStore('cubes', { keyPath: ['windowUID','id'] });
+                const cubeStore = db.createObjectStore('cubes', { keyPath: 'id' });
                 cubeStore.createIndex('windowUID', 'windowUID', { unique: false });
             }
             if (!db.objectStoreNames.contains('subcubes')) {
-                const subStore = db.createObjectStore('subcubes', { keyPath: ['windowUID','cubeId','row','col','layer'] });
+                const subStore = db.createObjectStore('subcubes', { keyPath: 'id' });
+                subStore.createIndex('cubeId', 'cubeId', { unique: false });
                 subStore.createIndex('windowUID', 'windowUID', { unique: false });
             }
             if (!db.objectStoreNames.contains('vertices')) {
-                const vertStore = db.createObjectStore('vertices', { keyPath: ['windowUID','cubeId','subId','index'] });
+                const vertStore = db.createObjectStore('vertices', { keyPath: 'id' });
+                vertStore.createIndex('subCubeId', 'subCubeId', { unique: false });
+                vertStore.createIndex('cubeId', 'cubeId', { unique: false });
                 vertStore.createIndex('windowUID', 'windowUID', { unique: false });
             }
         };
@@ -25,7 +28,7 @@ export async function saveCube(db, windowUID, cubeId, data) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction('cubes', 'readwrite');
         const store = tx.objectStore('cubes');
-        store.put({ windowUID, id: cubeId, ...data });
+        store.put({ id: cubeId, windowUID, data });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
@@ -46,7 +49,8 @@ export async function saveSubCube(db, windowUID, cubeId, row, col, layer, data) 
     return new Promise((resolve, reject) => {
         const tx = db.transaction('subcubes', 'readwrite');
         const store = tx.objectStore('subcubes');
-        store.put({ windowUID, cubeId, row, col, layer, ...data });
+        const id = `${cubeId}_${row}_${col}_${layer}`;
+        store.put({ id, windowUID, cubeId, row, col, layer, data });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
@@ -56,9 +60,9 @@ export async function loadSubCubes(db, windowUID, cubeId) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction('subcubes', 'readonly');
         const store = tx.objectStore('subcubes');
-        const keyRange = IDBKeyRange.bound([windowUID,cubeId,0,0,0], [windowUID,cubeId,Infinity,Infinity,Infinity]);
-        const req = store.getAll(keyRange);
-        req.onsuccess = () => resolve(req.result);
+        const index = store.index('cubeId');
+        const req = index.getAll(IDBKeyRange.only(cubeId));
+        req.onsuccess = () => resolve(req.result.filter(r => r.windowUID === windowUID));
         req.onerror = () => reject(req.error);
     });
 }
@@ -67,7 +71,8 @@ export async function saveVertex(db, windowUID, cubeId, subId, index, data) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction('vertices', 'readwrite');
         const store = tx.objectStore('vertices');
-        store.put({ windowUID, cubeId, subId, index, ...data });
+        const id = `${subId}_${index}`;
+        store.put({ id, windowUID, cubeId, subCubeId: subId, index, data });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
@@ -77,9 +82,9 @@ export async function loadVertices(db, windowUID, cubeId, subId) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction('vertices', 'readonly');
         const store = tx.objectStore('vertices');
-        const keyRange = IDBKeyRange.bound([windowUID,cubeId,subId,0], [windowUID,cubeId,subId,Infinity]);
-        const req = store.getAll(keyRange);
-        req.onsuccess = () => resolve(req.result);
+        const index = store.index('subCubeId');
+        const req = index.getAll(IDBKeyRange.only(subId));
+        req.onsuccess = () => resolve(req.result.filter(r => r.windowUID === windowUID && r.cubeId === cubeId));
         req.onerror = () => reject(req.error);
     });
 }
