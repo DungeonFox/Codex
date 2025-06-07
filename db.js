@@ -24,11 +24,12 @@ export async function openDB() {
     });
 }
 
-export async function saveCube(db, windowUID, cubeId, data) {
+export async function saveCube(db, windowUID, cubeId, center, subIds, vertexEntries) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction('cubes', 'readwrite');
         const store = tx.objectStore('cubes');
-        store.put({ id: cubeId, windowUID, data });
+        const value = [center, subIds, vertexEntries];
+        store.put({ id: cubeId, windowUID, value });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
@@ -40,17 +41,23 @@ export async function loadCubes(db, windowUID) {
         const store = tx.objectStore('cubes');
         const index = store.index('windowUID');
         const req = index.getAll(IDBKeyRange.only(windowUID));
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => resolve(req.result.map(r => ({
+            id: r.id,
+            windowUID: r.windowUID,
+            center: r.value ? r.value[0] : null,
+            subIds: r.value ? r.value[1] : [],
+            vertexEntries: r.value ? r.value[2] : []
+        })));
         req.onerror = () => reject(req.error);
     });
 }
 
-export async function saveSubCube(db, windowUID, cubeId, row, col, layer, data) {
+export async function saveSubCube(db, windowUID, cubeId, subId, center, blendId, vertexIds) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction('subcubes', 'readwrite');
         const store = tx.objectStore('subcubes');
-        const id = `${cubeId}_${row}_${col}_${layer}`;
-        store.put({ id, windowUID, cubeId, row, col, layer, data });
+        const value = [vertexIds, center, blendId];
+        store.put({ id: subId, windowUID, cubeId, value });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
@@ -62,17 +69,25 @@ export async function loadSubCubes(db, windowUID, cubeId) {
         const store = tx.objectStore('subcubes');
         const index = store.index('cubeId');
         const req = index.getAll(IDBKeyRange.only(cubeId));
-        req.onsuccess = () => resolve(req.result.filter(r => r.windowUID === windowUID));
+        req.onsuccess = () => resolve(req.result.filter(r => r.windowUID === windowUID).map(r => ({
+            id: r.id,
+            cubeId: r.cubeId,
+            windowUID: r.windowUID,
+            vertexIds: r.value ? r.value[0] : [],
+            center: r.value ? r.value[1] : null,
+            blendingLogicId: r.value ? r.value[2] : null
+        })));
         req.onerror = () => reject(req.error);
     });
 }
 
-export async function saveVertex(db, windowUID, cubeId, subId, index, data) {
+export async function saveVertex(db, windowUID, cubeId, subId, index, color, position, blendId, weight) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction('vertices', 'readwrite');
         const store = tx.objectStore('vertices');
         const id = `${subId}_${index}`;
-        store.put({ id, windowUID, cubeId, subCubeId: subId, index, data });
+        const value = [color, position, blendId, weight];
+        store.put({ id, windowUID, cubeId, subCubeId: subId, index, value });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
@@ -84,7 +99,17 @@ export async function loadVertices(db, windowUID, cubeId, subId) {
         const store = tx.objectStore('vertices');
         const index = store.index('subCubeId');
         const req = index.getAll(IDBKeyRange.only(subId));
-        req.onsuccess = () => resolve(req.result.filter(r => r.windowUID === windowUID && r.cubeId === cubeId));
+        req.onsuccess = () => resolve(req.result.filter(r => r.windowUID === windowUID && r.cubeId === cubeId).map(r => ({
+            id: r.id,
+            index: r.index,
+            subCubeId: r.subCubeId,
+            cubeId: r.cubeId,
+            windowUID: r.windowUID,
+            color: r.value ? r.value[0] : null,
+            position: r.value ? r.value[1] : null,
+            blendingLogicId: r.value ? r.value[2] : null,
+            weight: r.value ? r.value[3] : null
+        })));
         req.onerror = () => reject(req.error);
     });
 }

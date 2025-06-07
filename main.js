@@ -2,7 +2,7 @@ import WindowManager from './WindowManager.js'
 import GPUComputationRenderer from './GPUComputationRenderer.js'
 import { createColorShader } from './computeShader.js'
 import { createSubCubeMaterial, createCubeMaterial } from './materials.js'
-import { openDB, saveCube, loadCubes, saveSubCube, loadSubCubes } from './db.js'
+import { openDB, saveCube, loadCubes, saveSubCube, loadSubCubes, saveVertex } from './db.js'
 
 
 
@@ -436,13 +436,23 @@ else
 
         function persistCube(cube) {
                 if (!db) return;
-                let data = {
-                        position: { x: cube.position.x, y: cube.position.y, z: cube.position.z },
-                        rotation: { x: cube.rotation.x, y: cube.rotation.y, z: cube.rotation.z },
-                        color: `#${cube.material.color.getHexString()}`,
-                        weight: cube.userData.weight || 1
-                };
-                saveCube(db, thisWindowId, cube.userData.winId, data).catch(err => console.error('DB save cube', err));
+                let center = [cube.position.x, cube.position.y, cube.position.z];
+                let subIds = [];
+                if (cube.userData.subGroup) {
+                        cube.userData.subGroup.children.forEach((g, idx) => {
+                                subIds.push(`${cube.userData.winId}_sub${idx}`);
+                        });
+                }
+                let hw = cube.geometry.parameters.width / 2;
+                let hh = cube.geometry.parameters.height / 2;
+                let hd = cube.geometry.parameters.depth / 2;
+                let corners = [
+                        [-hw,-hh,-hd], [hw,-hh,-hd], [hw,hh,-hd], [-hw,hh,-hd],
+                        [-hw,-hh,hd], [hw,-hh,hd], [hw,hh,hd], [-hw,hh,hd]
+                ];
+                let col = cube.material.color;
+                let vertexEntries = corners.map(pos => [pos, [Math.round(col.r*255), Math.round(col.g*255), Math.round(col.b*255)], 1.0, 'blendBackground']);
+                saveCube(db, thisWindowId, cube.userData.winId, center, subIds, vertexEntries).catch(err => console.error('DB save cube', err));
         }
 
         function persistSubCube(cube, row, col, layer) {
@@ -454,13 +464,34 @@ else
                 let r = coordToIndex(row, rows);
                 let c = coordToIndex(col, cols);
                 let idx = d * rows * cols + r * cols + c;
-                let color = {
-                        r: cube.userData.colorBuffer[idx*3],
-                        g: cube.userData.colorBuffer[idx*3+1],
-                        b: cube.userData.colorBuffer[idx*3+2]
-                };
-                let weight = cube.userData.weightBuffer[idx];
-                saveSubCube(db, thisWindowId, cube.userData.winId, r, c, d, { color: `#${new t.Color(color.r, color.g, color.b).getHexString()}`, weight }).catch(err => console.error('DB save sub', err));
+                let subId = `${cube.userData.winId}_sub${idx}`;
+                let center = [
+                        -cubeControls.width / 2 + cube.userData.subInfo.subW * (c + 0.5),
+                        -cubeControls.height / 2 + cube.userData.subInfo.subH * (r + 0.5),
+                        -cube.userData.subInfo.subD * layers / 2 + cube.userData.subInfo.subD * (d + 0.5)
+                ];
+                let vertexIds = [];
+                for (let i = 0; i < 8; i++) {
+                        let vid = `${subId}vtx${i}`;
+                        vertexIds.push(vid);
+                        let hw = cube.userData.subInfo.subW / 2;
+                        let hh = cube.userData.subInfo.subH / 2;
+                        let hd = cube.userData.subInfo.subD / 2;
+                        let verts = [
+                                [-hw,-hh,-hd], [hw,-hh,-hd], [hw,hh,-hd], [-hw,hh,-hd],
+                                [-hw,-hh,hd], [hw,-hh,hd], [hw,hh,hd], [-hw,hh,hd]
+                        ];
+                        let p = verts[i];
+                        let color = [
+                                Math.round(cube.userData.colorBuffer[idx*3]*255),
+                                Math.round(cube.userData.colorBuffer[idx*3+1]*255),
+                                Math.round(cube.userData.colorBuffer[idx*3+2]*255)
+                        ];
+                        let weight = cube.userData.weightBuffer[idx];
+                        saveVertex(db, thisWindowId, cube.userData.winId, subId, i, color, [p[0]+center[0], p[1]+center[1], p[2]+center[2]], 'blendsoft', weight)
+                                .catch(err => console.error('DB save vtx', err));
+                }
+                saveSubCube(db, thisWindowId, cube.userData.winId, subId, center, 'blend_soft', vertexIds).catch(err => console.error('DB save sub', err));
         }
 
         function updateNumberOfCubes ()
