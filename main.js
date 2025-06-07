@@ -439,7 +439,12 @@ else
                 let center = [cube.position.x, cube.position.y, cube.position.z];
                 let subIds = [];
                 if (cube.userData.subGroup) {
-                        cube.userData.subGroup.children.forEach((g, idx) => {
+                        let ordered = orderSubCubes(cube);
+                        let rows = cube.userData.subInfo.rows;
+                        let cols = cube.userData.subInfo.cols;
+                        let layers = cube.userData.subInfo.layers;
+                        ordered.forEach(ent => {
+                                let idx = ent.layer * rows * cols + ent.row * cols + ent.col;
                                 subIds.push(`${cube.userData.winId}_sub${idx}`);
                         });
                 }
@@ -471,6 +476,13 @@ else
                         -cube.userData.subInfo.subD * layers / 2 + cube.userData.subInfo.subD * (d + 0.5)
                 ];
                 let vertexIds = [];
+                let signs = [
+                        [-1,-1,-1], [1,-1,-1], [1,1,-1], [-1,1,-1],
+                        [-1,-1,1], [1,-1,1], [1,1,1], [-1,1,1]
+                ];
+                let left = c === 0, right = c === cols - 1;
+                let bottom = r === 0, top = r === rows - 1;
+                let back = d === 0, front = d === layers - 1;
                 for (let i = 0; i < 8; i++) {
                         let vid = `${subId}vtx${i}`;
                         vertexIds.push(vid);
@@ -488,7 +500,13 @@ else
                                 Math.round(cube.userData.colorBuffer[idx*3+2]*255)
                         ];
                         let weight = cube.userData.weightBuffer[idx];
-                        saveVertex(db, thisWindowId, cube.userData.winId, subId, i, color, [p[0]+center[0], p[1]+center[1], p[2]+center[2]], 'blendsoft', weight)
+                        let s = signs[i];
+                        let matchAxes = 0;
+                        if ((left && s[0] < 0) || (right && s[0] > 0)) matchAxes++;
+                        if ((bottom && s[1] < 0) || (top && s[1] > 0)) matchAxes++;
+                        if ((back && s[2] < 0) || (front && s[2] > 0)) matchAxes++;
+                        let blend = matchAxes >= 2 ? 'blendCorner' : 'blendsoft';
+                        saveVertex(db, thisWindowId, cube.userData.winId, subId, i, color, [p[0]+center[0], p[1]+center[1], p[2]+center[2]], blend, weight)
                                 .catch(err => console.error('DB save vtx', err));
                 }
                 saveSubCube(db, thisWindowId, cube.userData.winId, subId, center, 'blend_soft', vertexIds).catch(err => console.error('DB save sub', err));
