@@ -425,6 +425,11 @@ else
                         });
                         for (let cube of cubes) {
                                 let subs = await loadSubCubes(db, thisWindowId, cube.userData.winId);
+                                subs.sort((a, b) => {
+                                        let aIdx = getSubCubeOrderIndex(cube, a.row, a.col, a.layer);
+                                        let bIdx = getSubCubeOrderIndex(cube, b.row, b.col, b.layer);
+                                        return aIdx - bIdx;
+                                });
                                 subs.forEach(s => {
                                         if (s.color) applyColorToSubCube(cube, s.row, s.col, s.layer, s.color);
                                         if (s.weight !== undefined) applyWeightToSubCube(cube, s.row, s.col, s.layer, s.weight);
