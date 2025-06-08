@@ -436,11 +436,11 @@ else
                 }
         }
 
-        function subCubeIdFromIndices(cube, r, c, d) {
-                let rows = cube.userData.subInfo.rows;
-                let cols = cube.userData.subInfo.cols;
-                let index = d * rows * cols + r * cols + c;
-                return `${cube.userData.winId}_sub${index.toString().padStart(3,'0')}`;
+       function subCubeIdFromIndices(cube, r, c, d) {
+               let rows = cube.userData.subInfo.rows;
+               let cols = cube.userData.subInfo.cols;
+               let index = d * rows * cols + r * cols + c;
+               return `${cube.userData.winId}_sub${index}`;
        }
 
         function persistCube(cube) {
