@@ -52,7 +52,7 @@ export async function loadCubes(db, windowUID) {
     });
 }
 
-export async function saveSubCube(db, windowUID, cubeId, subId, center, blendId, vertexIds) {
+export async function saveSubCube(db, windowUID, cubeId, subId, center, blendId, vertexIds, order) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction('subcubes', 'readwrite');
         const store = tx.objectStore('subcubes');
@@ -63,7 +63,8 @@ export async function saveSubCube(db, windowUID, cubeId, subId, center, blendId,
             center,
             originID: cubeId,
             blendingLogicId: blendId,
-            vertexIds
+            vertexIds,
+            order: order
         });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
@@ -76,18 +77,22 @@ export async function loadSubCubes(db, windowUID, cubeId) {
         const store = tx.objectStore('subcubes');
         const index = store.index('cubeId');
         const req = index.getAll(IDBKeyRange.only(cubeId));
-        req.onsuccess = () => resolve(req.result
-            .filter(r => r.windowUID === windowUID)
-            .map(r => ({
-                id: r.id,
-                cubeId: r.cubeId,
-                windowUID: r.windowUID,
-                center: r.center,
-                originID: r.originID,
-                blendingLogicId: r.blendingLogicId,
-                vertexIds: r.vertexIds || []
-            }))
-        );
+        req.onsuccess = () => {
+            let out = req.result
+                .filter(r => r.windowUID === windowUID)
+                .map(r => ({
+                    id: r.id,
+                    cubeId: r.cubeId,
+                    windowUID: r.windowUID,
+                    center: r.center,
+                    originID: r.originID,
+                    blendingLogicId: r.blendingLogicId,
+                    vertexIds: r.vertexIds || [],
+                    order: r.order ?? 0
+                }));
+            out.sort((a,b) => a.order - b.order);
+            resolve(out);
+        };
         req.onerror = () => reject(req.error);
     });
 }

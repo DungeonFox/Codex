@@ -462,7 +462,7 @@ else
                 saveCube(db, thisWindowId, cube.userData.winId, center, subIds, vertexEntries).catch(err => console.error('DB save cube', err));
         }
 
-        function persistSubCube(cube, row, col, layer) {
+        function persistSubCube(cube, row, col, layer, orderIdx = 0) {
                 if (!db) return;
                 let rows = cube.userData.subInfo.rows;
                 let cols = cube.userData.subInfo.cols;
@@ -519,7 +519,15 @@ else
                         saveVertex(db, thisWindowId, cube.userData.winId, subId, i, color, [p[0]+center[0], p[1]+center[1], p[2]+center[2]], blend, weight)
                                 .catch(err => console.error('DB save vtx', err));
                 }
-                saveSubCube(db, thisWindowId, cube.userData.winId, subId, center, 'blend_soft', vertexIds).catch(err => console.error('DB save sub', err));
+                saveSubCube(db, thisWindowId, cube.userData.winId, subId, center, 'blend_soft', vertexIds, orderIdx).catch(err => console.error('DB save sub', err));
+        }
+
+        function persistAllSubCubes(cube) {
+                if (!db || !cube.userData.subGroup) return;
+                let ordered = orderSubCubes(cube);
+                ordered.forEach((ent, idx) => {
+                        persistSubCube(cube, ent.row, ent.col, ent.layer, idx);
+                });
         }
 
         function updateNumberOfCubes ()
@@ -569,6 +577,7 @@ else
 
                         world.add(cube);
                         persistCube(cube);
+                        persistAllSubCubes(cube);
                         cubes.push(cube);
                 }
         }
@@ -584,6 +593,7 @@ else
                         cube.material.needsUpdate = true;
                         createSubCubeGrid(cube, baseDepth);
                         persistCube(cube);
+                        persistAllSubCubes(cube);
                 });
                 updateSubCubeColor();
                 updateSelectedSubCubeColor();
@@ -764,6 +774,15 @@ else
                return result;
        }
 
+       function getSubCubeOrderIndex(cube, r, c, d) {
+               let ordered = orderSubCubes(cube);
+               for (let i = 0; i < ordered.length; i++) {
+                       let o = ordered[i];
+                       if (o.row === r && o.col === c && o.layer === d) return i;
+               }
+               return 0;
+       }
+
        function getCubeSummary(count = 5, winId = thisWindowId) {
                let cube = cubes.find(c => c.userData.winId === winId);
                if (!cube || !cube.userData.subInfo) return null;
@@ -810,7 +829,8 @@ else
                        if (!cube.userData.metaData.subColors) cube.userData.metaData.subColors = {};
                        let key = `${r}_${c}_${d}`;
                        cube.userData.metaData.subColors[key] = colorStr;
-                       persistSubCube(cube, r, c, d);
+                       let ord = getSubCubeOrderIndex(cube, r, c, d);
+                       persistSubCube(cube, r, c, d, ord);
                }
       }
 
@@ -831,9 +851,10 @@ else
                        if (!cube.userData.metaData.subWeights) cube.userData.metaData.subWeights = {};
                        let key = `${r}_${c}_${d}`;
                        cube.userData.metaData.subWeights[key] = weightVal;
-                       persistSubCube(cube, r, c, d);
+                       let ord = getSubCubeOrderIndex(cube, r, c, d);
+                       persistSubCube(cube, r, c, d, ord);
                }
-       }
+      }
 
        function applyColorData(arr) {
                cubes.forEach((cube) => {
@@ -1054,7 +1075,6 @@ else
                                cube.userData.subMatrix[d][r][c] = container;
                                cube.userData.weightBuffer[idx] = weightVal;
                                container.userData.vertexColors = pColors;
-                               persistSubCube(cube, r, c, d);
                        }
                }
        }
@@ -1092,6 +1112,8 @@ else
                         let baseDepth = cubeControls.depth;
                         if (cubeControls.matchDepth) baseDepth = (cubeControls.width / cubeControls.columns) * cubeControls.subDepth;
                         createSubCubeGrid(cube, baseDepth);
+                        persistCube(cube);
+                        persistAllSubCubes(cube);
                 });
                 updateSubCubeColor();
                 updateSelectedSubCubeColor();
