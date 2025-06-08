@@ -436,12 +436,14 @@ else
                 }
         }
 
-       function subCubeIdFromIndices(cube, r, c, d) {
-               let rows = cube.userData.subInfo.rows;
-               let cols = cube.userData.subInfo.cols;
-               let index = d * rows * cols + r * cols + c;
-               return `${cube.userData.winId}_sub${index}`;
-       }
+function orderedSubCubeId(cube, orderIdx) {
+       return `${cube.userData.winId}_sub${orderIdx}`;
+}
+
+function subCubeIdFromIndices(cube, r, c, d) {
+       let ord = getSubCubeOrderIndex(cube, r, c, d);
+       return orderedSubCubeId(cube, ord);
+}
 
         function persistCube(cube) {
                 if (!db) return;
@@ -449,8 +451,8 @@ else
                 let subIds = [];
                 if (cube.userData.subGroup) {
                         let ordered = orderSubCubes(cube);
-                        ordered.forEach((ent) => {
-                                subIds.push(subCubeIdFromIndices(cube, ent.row, ent.col, ent.layer));
+                        ordered.forEach((ent, idx) => {
+                                subIds.push(orderedSubCubeId(cube, idx));
                         });
                 }
                 let hw = cube.geometry.parameters.width / 2;
@@ -477,7 +479,7 @@ else
                 let d = layer;
 
                 let idx = d * rows * cols + r * cols + c;
-                let subId = subCubeIdFromIndices(cube, r, c, d);
+                let subId = orderedSubCubeId(cube, orderIdx);
 
                 let { subW, subH, subD } = cube.userData.subInfo;
                 let width = subW * cols;
@@ -739,7 +741,7 @@ else
                                cube.userData.colorBuffer[idx * 3 + 2]
                        );
                        let weight = cube.userData.weightBuffer ? cube.userData.weightBuffer[idx] : 1;
-                       let id = subCubeIdFromIndices(cube, r, c, d);
+                       let id = orderedSubCubeId(cube, result.length);
                        result.push({ id, row: r, col: c, layer: d, color: `#${color.getHexString()}`, weight });
                }
 

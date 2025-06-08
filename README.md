@@ -28,10 +28,10 @@ The main application logic is contained within `main.js` and `WindowManager.js`.
 - `main.js` initializes the 3D scene using Three.js, manages the window's resize events, and updates the scene based on window interactions.
 
 ## Cube State Helpers
-Use `getCubeSummary()` in the browser console to view an ordered list of sub-cubes starting from the center. Each entry contains the sub-cube ID along with its coordinates, color and weight. The function returns the cube's dimensions, total number of sub-cubes, and the first five entries in this order. For a 3×3×1 cube the sequence of IDs will be `1_sub4`, `1_sub0`, `1_sub2`, `1_sub6`, `1_sub8`, followed by the remaining sub-cubes.
+Use `getCubeSummary()` in the browser console to view an ordered list of sub-cubes starting from the center. Each entry includes the sub-cube ID with its coordinates, color and weight. The function returns the cube's dimensions, total number of sub-cubes and the first five entries in this order. For a 3×3×1 cube the sequence of IDs will be `1_sub0`, `1_sub1`, `1_sub2`, `1_sub3`, `1_sub4`, followed by the remaining sub-cubes.
 
 ## IndexedDB Structure
-Cube information is persisted in three stores. Each entry uses an ID as key and stores an array describing the data so it can be read back as typed buffers. Sub-cubes are saved with IDs based on their grid index (`sub0`, `sub1`, ...). The IDs follow the order returned by `orderSubCubes`—the center first, then the corners, then the remaining cells from top-left to bottom-right.
+Cube information is persisted in three stores. Each entry uses an ID as key and stores an array describing the data so it can be read back as typed buffers. Sub-cube IDs are sequential (`sub0`, `sub1`, ...), reflecting the order returned by `orderSubCubes`—the center first, then the corners, then the remaining cells from top-left to bottom-right.
 
 - **cubes** – `{ id, windowUID, value: [ center, subIds, vertexEntries ] }` where `center` is `[x,y,z]`, `subIds` lists associated sub‑cube IDs and `vertexEntries` contains `[position, color, weight, blendingLogicId]` arrays for the main cube vertices.
 - **subcubes** – `{ id, windowUID, cubeId, center, originID, blendingLogicId, vertexIds, order, row, col, layer }` linking to all vertex IDs and storing its local center and index.
