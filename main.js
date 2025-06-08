@@ -436,14 +436,21 @@ else
                 }
         }
 
+        function subCubeIdFromIndices(cube, r, c, d) {
+                let rows = cube.userData.subInfo.rows;
+                let cols = cube.userData.subInfo.cols;
+                let index = d * rows * cols + r * cols + c;
+                return `${cube.userData.winId}_sub${index.toString().padStart(3,'0')}`;
+       }
+
         function persistCube(cube) {
                 if (!db) return;
                 let center = [cube.position.x, cube.position.y, cube.position.z];
                 let subIds = [];
                 if (cube.userData.subGroup) {
                         let ordered = orderSubCubes(cube);
-                        ordered.forEach((ent, i) => {
-                                subIds.push(`${cube.userData.winId}_sub${i}`);
+                        ordered.forEach((ent) => {
+                                subIds.push(subCubeIdFromIndices(cube, ent.row, ent.col, ent.layer));
                         });
                 }
                 let hw = cube.geometry.parameters.width / 2;
@@ -470,7 +477,7 @@ else
                 let d = layer;
 
                 let idx = d * rows * cols + r * cols + c;
-                let subId = `${cube.userData.winId}_sub${orderIdx}`;
+                let subId = subCubeIdFromIndices(cube, r, c, d);
 
                 let { subW, subH, subD } = cube.userData.subInfo;
                 let width = subW * cols;
