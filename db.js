@@ -94,8 +94,10 @@ export async function loadSubCubes(db, windowUID, cubeId) {
                     order: r.order ?? 0,
                     row: r.row,
                     col: r.col,
-                    layer: r.layer
-                }));
+                layer: r.layer
+            }));
+            // sort by the stored order so callers receive sub-cubes
+            // in the same sequence used when persisting the cube
             out.sort((a,b) => a.order - b.order);
             resolve(out);
         };
