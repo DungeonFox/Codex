@@ -3,6 +3,8 @@ let THREE = globalThis.THREE;
 
 class GPUComputationRenderer {
   constructor(sizeX, sizeY, renderer) {
+    this.sizeX = sizeX;
+    this.sizeY = sizeY;
     this.variables = [];
     this.currentTextureIndex = 0;
     let dataType = THREE.FloatType;
