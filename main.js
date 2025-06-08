@@ -2,7 +2,7 @@ import WindowManager from './WindowManager.js'
 import GPUComputationRenderer from './GPUComputationRenderer.js'
 import { createColorShader } from './computeShader.js'
 import { createSubCubeMaterial, createCubeMaterial } from './materials.js'
-import { openDB, saveCube, loadCubes, saveSubCube, loadSubCubes, saveVertex } from './db.js'
+import { openDB, saveCube, loadCubes, saveSubCube, loadSubCubes, saveVertex, deleteSubCubesByCube, deleteVerticesByCube, deleteWindowData, cleanupStaleWindows } from './db.js'
 
 
 
@@ -195,6 +195,8 @@ else
                         setupWindowManager();
                         try {
                                 db = await openDB();
+                        await cleanupStaleWindows(db, windowManager.getWindows().map(w => w.id));
+                        window.addEventListener("beforeunload", () => { if (db) deleteWindowData(db, windowManager.getThisWindowID()); });
                         } catch(err) {
                                 console.error('IndexedDB init failed', err);
                         }
@@ -946,6 +948,10 @@ else
 
         cube.userData.subMatrix = [];
         cube.userData.subGroup = new t.Group();
+        if (db) {
+                deleteSubCubesByCube(db, cube.userData.winId);
+                deleteVerticesByCube(db, cube.userData.winId);
+        }
 
         let rows = Math.max(1, cubeControls.rows | 0);
         let cols = Math.max(1, cubeControls.columns | 0);

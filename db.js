@@ -125,3 +125,86 @@ export async function loadVertices(db, windowUID, cubeId, subId) {
     });
 }
 
+
+export async function deleteSubCubesByCube(db, cubeId) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('subcubes', 'readwrite');
+        const store = tx.objectStore('subcubes');
+        const index = store.index('cubeId');
+        const req = index.getAllKeys(IDBKeyRange.only(cubeId));
+        req.onsuccess = () => { req.result.forEach(key => store.delete(key)); };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+export async function deleteVerticesByCube(db, cubeId) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('vertices', 'readwrite');
+        const store = tx.objectStore('vertices');
+        const index = store.index('cubeId');
+        const req = index.getAllKeys(IDBKeyRange.only(cubeId));
+        req.onsuccess = () => { req.result.forEach(key => store.delete(key)); };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+export async function deleteCube(db, cubeId) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('cubes', 'readwrite');
+        const store = tx.objectStore('cubes');
+        store.delete(cubeId);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+export async function deleteWindowData(db, windowUID) {
+    await Promise.all([
+        new Promise((res, rej) => {
+            const tx = db.transaction('cubes', 'readwrite');
+            const store = tx.objectStore('cubes');
+            const index = store.index('windowUID');
+            const req = index.getAllKeys(IDBKeyRange.only(windowUID));
+            req.onsuccess = () => { req.result.forEach(key => store.delete(key)); };
+            tx.oncomplete = () => res();
+            tx.onerror = () => rej(tx.error);
+        }),
+        new Promise((res, rej) => {
+            const tx = db.transaction('subcubes', 'readwrite');
+            const store = tx.objectStore('subcubes');
+            const index = store.index('windowUID');
+            const req = index.getAllKeys(IDBKeyRange.only(windowUID));
+            req.onsuccess = () => { req.result.forEach(key => store.delete(key)); };
+            tx.oncomplete = () => res();
+            tx.onerror = () => rej(tx.error);
+        }),
+        new Promise((res, rej) => {
+            const tx = db.transaction('vertices', 'readwrite');
+            const store = tx.objectStore('vertices');
+            const index = store.index('windowUID');
+            const req = index.getAllKeys(IDBKeyRange.only(windowUID));
+            req.onsuccess = () => { req.result.forEach(key => store.delete(key)); };
+            tx.oncomplete = () => res();
+            tx.onerror = () => rej(tx.error);
+        })
+    ]);
+}
+
+export async function cleanupStaleWindows(db, validIds) {
+    const toDelete = [];
+    await new Promise((resolve, reject) => {
+        const tx = db.transaction('cubes', 'readonly');
+        const store = tx.objectStore('cubes');
+        const req = store.getAll();
+        req.onsuccess = () => {
+            req.result.forEach(r => { if (!validIds.includes(r.windowUID)) toDelete.push(r.windowUID); });
+            resolve();
+        };
+        req.onerror = () => reject(req.error);
+    });
+    for (let id of [...new Set(toDelete)]) {
+        await deleteWindowData(db, id);
+    }
+}
