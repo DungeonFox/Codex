@@ -465,15 +465,23 @@ else
                 let rows = cube.userData.subInfo.rows;
                 let cols = cube.userData.subInfo.cols;
                 let layers = cube.userData.subInfo.layers;
-                let d = coordToIndex(layer, layers);
-                let r = coordToIndex(row, rows);
-                let c = coordToIndex(col, cols);
+
+                // row, col and layer are passed in as indices
+                let r = row;
+                let c = col;
+                let d = layer;
+
                 let idx = d * rows * cols + r * cols + c;
                 let subId = `${cube.userData.winId}_sub${idx}`;
+
+                let { subW, subH, subD } = cube.userData.subInfo;
+                let width = subW * cols;
+                let height = subH * rows;
+                let depth = subD * layers;
                 let center = [
-                        -cubeControls.width / 2 + cube.userData.subInfo.subW * (c + 0.5),
-                        -cubeControls.height / 2 + cube.userData.subInfo.subH * (r + 0.5),
-                        -cube.userData.subInfo.subD * layers / 2 + cube.userData.subInfo.subD * (d + 0.5)
+                        -width / 2 + subW * (c + 0.5),
+                        -height / 2 + subH * (r + 0.5),
+                        -depth / 2 + subD * (d + 0.5)
                 ];
                 let vertexIds = [];
                 let signs = [
@@ -1040,6 +1048,7 @@ else
                                cube.userData.subMatrix[d][r][c] = container;
                                cube.userData.weightBuffer[idx] = weightVal;
                                container.userData.vertexColors = pColors;
+                               persistSubCube(cube, r, c, d);
                        }
                }
        }
