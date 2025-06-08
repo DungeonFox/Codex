@@ -1,6 +1,6 @@
 export async function openDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open('CubeDB', 2);
+        const request = indexedDB.open('CubeDB', 3);
         request.onupgradeneeded = (event) => {
             const db = event.target.result;
             if (!db.objectStoreNames.contains('cubes')) {
@@ -52,7 +52,7 @@ export async function loadCubes(db, windowUID) {
     });
 }
 
-export async function saveSubCube(db, windowUID, cubeId, subId, center, blendId, vertexIds, order) {
+export async function saveSubCube(db, windowUID, cubeId, subId, center, blendId, vertexIds, order, row, col, layer) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction('subcubes', 'readwrite');
         const store = tx.objectStore('subcubes');
@@ -64,7 +64,10 @@ export async function saveSubCube(db, windowUID, cubeId, subId, center, blendId,
             originID: cubeId,
             blendingLogicId: blendId,
             vertexIds,
-            order: order
+            order,
+            row,
+            col,
+            layer
         });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
@@ -88,7 +91,10 @@ export async function loadSubCubes(db, windowUID, cubeId) {
                     originID: r.originID,
                     blendingLogicId: r.blendingLogicId,
                     vertexIds: r.vertexIds || [],
-                    order: r.order ?? 0
+                    order: r.order ?? 0,
+                    row: r.row,
+                    col: r.col,
+                    layer: r.layer
                 }));
             out.sort((a,b) => a.order - b.order);
             resolve(out);

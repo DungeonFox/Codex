@@ -442,12 +442,8 @@ else
                 let subIds = [];
                 if (cube.userData.subGroup) {
                         let ordered = orderSubCubes(cube);
-                        let rows = cube.userData.subInfo.rows;
-                        let cols = cube.userData.subInfo.cols;
-                        let layers = cube.userData.subInfo.layers;
-                        ordered.forEach(ent => {
-                                let idx = ent.layer * rows * cols + ent.row * cols + ent.col;
-                                subIds.push(`${cube.userData.winId}_sub${idx}`);
+                        ordered.forEach((ent, i) => {
+                                subIds.push(`${cube.userData.winId}_sub${i}`);
                         });
                 }
                 let hw = cube.geometry.parameters.width / 2;
@@ -474,7 +470,7 @@ else
                 let d = layer;
 
                 let idx = d * rows * cols + r * cols + c;
-                let subId = `${cube.userData.winId}_sub${idx}`;
+                let subId = `${cube.userData.winId}_sub${orderIdx}`;
 
                 let { subW, subH, subD } = cube.userData.subInfo;
                 let width = subW * cols;
@@ -519,7 +515,7 @@ else
                         saveVertex(db, thisWindowId, cube.userData.winId, subId, i, color, [p[0]+center[0], p[1]+center[1], p[2]+center[2]], blend, weight)
                                 .catch(err => console.error('DB save vtx', err));
                 }
-                saveSubCube(db, thisWindowId, cube.userData.winId, subId, center, 'blend_soft', vertexIds, orderIdx).catch(err => console.error('DB save sub', err));
+                saveSubCube(db, thisWindowId, cube.userData.winId, subId, center, 'blend_soft', vertexIds, orderIdx, r, c, d).catch(err => console.error('DB save sub', err));
         }
 
         function persistAllSubCubes(cube) {
