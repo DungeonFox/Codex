@@ -31,7 +31,7 @@ The main application logic is contained within `main.js` and `WindowManager.js`.
 Use `getCubeSummary()` in the browser console to view an ordered list of sub-cubes starting from the center. The function returns the cube's dimensions, total number of sub-cubes, and the first five entries in this order.
 
 ## IndexedDB Structure
-Cube information is persisted in three stores. Each entry uses an ID as key and stores an array describing the data so it can be read back as typed buffers.
+Cube information is persisted in three stores. Each entry uses an ID as key and stores an array describing the data so it can be read back as typed buffers. Sub-cubes are stored in the order returned by `orderSubCubes`—the center sub-cube first, then the outermost corners, followed by the remaining cells from top-left to bottom-right.
 
 - **cubes** – `{ id, windowUID, value: [ center, subIds, vertexEntries ] }` where `center` is `[x,y,z]`, `subIds` lists associated sub‑cube IDs and `vertexEntries` contains `[position, color, weight, blendingLogicId]` arrays for the main cube vertices.
  - **subcubes** – `{ id, windowUID, cubeId, center, originID, blendingLogicId, vertexIds }` linking to all vertex IDs and storing its local center.

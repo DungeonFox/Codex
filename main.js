@@ -719,7 +719,9 @@ else
                        result.push({ row: r, col: c, layer: d, color: `#${color.getHexString()}`, weight });
                }
 
+               let added = new Set();
                pushEntry(center.row, center.col, center.layer);
+               added.add(`${center.row},${center.col},${center.layer}`);
 
                let corners = [
                        [0, 0, 0],
@@ -732,16 +734,20 @@ else
                        [rows - 1, cols - 1, layers - 1]
                ];
                corners.forEach(co => {
-                       if (co[0] === center.row && co[1] === center.col && co[2] === center.layer) return;
-                       pushEntry(co[0], co[1], co[2]);
+                       let key = `${co[0]},${co[1]},${co[2]}`;
+                       if (!added.has(key)) {
+                               pushEntry(co[0], co[1], co[2]);
+                               added.add(key);
+                       }
                });
 
                for (let d = 0; d < layers; d++) {
                        for (let r = 0; r < rows; r++) {
                                for (let c = 0; c < cols; c++) {
-                                       if (d === center.layer && r === center.row && c === center.col) continue;
-                                       if (corners.some(co => co[0] === r && co[1] === c && co[2] === d)) continue;
+                                       let key = `${r},${c},${d}`;
+                                       if (added.has(key)) continue;
                                        pushEntry(r, c, d);
+                                       added.add(key);
                                }
                        }
                }
