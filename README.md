@@ -28,7 +28,7 @@ The main application logic is contained within `main.js` and `WindowManager.js`.
 - `main.js` initializes the 3D scene using Three.js, manages the window's resize events, and updates the scene based on window interactions.
 
 ## Cube State Helpers
-Use `getCubeSummary()` in the browser console to view an ordered list of sub-cubes starting from the center. The function returns the cube's dimensions, total number of sub-cubes, and the first five entries in this order.
+Use `getCubeSummary()` in the browser console to view an ordered list of sub-cubes starting from the center. Each entry contains the sub-cube ID along with its coordinates, color and weight. The function returns the cube's dimensions, total number of sub-cubes, and the first five entries in this order. For a 3×3×1 cube the sequence of IDs will be `1_sub4`, `1_sub0`, `1_sub2`, `1_sub6`, `1_sub8`, followed by the remaining sub-cubes.
 
 ## IndexedDB Structure
 Cube information is persisted in three stores. Each entry uses an ID as key and stores an array describing the data so it can be read back as typed buffers. Sub-cubes are saved with IDs based on their grid index (`sub0`, `sub1`, ...). The IDs follow the order returned by `orderSubCubes`—the center first, then the corners, then the remaining cells from top-left to bottom-right.

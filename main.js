@@ -739,7 +739,8 @@ else
                                cube.userData.colorBuffer[idx * 3 + 2]
                        );
                        let weight = cube.userData.weightBuffer ? cube.userData.weightBuffer[idx] : 1;
-                       result.push({ row: r, col: c, layer: d, color: `#${color.getHexString()}`, weight });
+                       let id = subCubeIdFromIndices(cube, r, c, d);
+                       result.push({ id, row: r, col: c, layer: d, color: `#${color.getHexString()}`, weight });
                }
 
                let added = new Set();
