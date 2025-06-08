@@ -34,7 +34,7 @@ Use `getCubeSummary()` in the browser console to view an ordered list of sub-cub
 Cube information is persisted in three stores. Each entry uses an ID as key and stores an array describing the data so it can be read back as typed buffers.
 
 - **cubes** – `{ id, windowUID, value: [ center, subIds, vertexEntries ] }` where `center` is `[x,y,z]`, `subIds` lists associated sub‑cube IDs and `vertexEntries` contains `[position, color, weight, blendingLogicId]` arrays for the main cube vertices.
-- **subcubes** – `{ id, windowUID, cubeId, value: [ vertexIds, center, blendingLogicId ] }` linking to all vertex IDs and storing its local center.
+ - **subcubes** – `{ id, windowUID, cubeId, center, originID, blendingLogicId, vertexIds }` linking to all vertex IDs and storing its local center.
 - **vertices** – `{ id, windowUID, cubeId, subCubeId, index, value: [ color, position, blendingLogicId, weight ] }` describing each vertex.
 
 These stores allow each window to share cube layouts and colors across sessions.

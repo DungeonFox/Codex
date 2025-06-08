@@ -56,8 +56,15 @@ export async function saveSubCube(db, windowUID, cubeId, subId, center, blendId,
     return new Promise((resolve, reject) => {
         const tx = db.transaction('subcubes', 'readwrite');
         const store = tx.objectStore('subcubes');
-        const value = [vertexIds, center, blendId];
-        store.put({ id: subId, windowUID, cubeId, value });
+        store.put({
+            id: subId,
+            windowUID,
+            cubeId,
+            center,
+            originID: cubeId,
+            blendingLogicId: blendId,
+            vertexIds
+        });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
@@ -69,14 +76,18 @@ export async function loadSubCubes(db, windowUID, cubeId) {
         const store = tx.objectStore('subcubes');
         const index = store.index('cubeId');
         const req = index.getAll(IDBKeyRange.only(cubeId));
-        req.onsuccess = () => resolve(req.result.filter(r => r.windowUID === windowUID).map(r => ({
-            id: r.id,
-            cubeId: r.cubeId,
-            windowUID: r.windowUID,
-            vertexIds: r.value ? r.value[0] : [],
-            center: r.value ? r.value[1] : null,
-            blendingLogicId: r.value ? r.value[2] : null
-        })));
+        req.onsuccess = () => resolve(req.result
+            .filter(r => r.windowUID === windowUID)
+            .map(r => ({
+                id: r.id,
+                cubeId: r.cubeId,
+                windowUID: r.windowUID,
+                center: r.center,
+                originID: r.originID,
+                blendingLogicId: r.blendingLogicId,
+                vertexIds: r.vertexIds || []
+            }))
+        );
         req.onerror = () => reject(req.error);
     });
 }
